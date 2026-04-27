@@ -1,0 +1,24 @@
+ebird_token.json
+.streamlit/secrets.toml
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local/generated analysis artifacts
+/BigDayOptimizerDemo.ipynb
+/download_list.ipynb
+/eBird_taxonomy_v2024.csv
+/eBird_taxonomy_v2024.xlsx
+/itinerary.csv
+/*_bird_species.csv
+/*_bird_species.json
+/*_bird_species.txt

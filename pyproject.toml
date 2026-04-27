@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "big-day-optimizer"
+version = "0.1.0"
+description = "Plan a one-day eBird route that maximizes expected species."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+  { name = "Justin Joyce" }
+]
+dependencies = [
+  "ortools==9.12.4544",
+  "pandas==2.2.3",
+  "ebird-api==3.4.2",
+  "geopy==2.4.1",
+  "requests==2.32.3",
+  "numpy==1.26.4",
+  "streamlit==1.39.0",
+]
+
+[project.scripts]
+big-day-optimizer = "big_day_optimizer.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["big_day_optimizer*"]
+
+[tool.setuptools.package-data]
+big_day_optimizer = ["data/*.csv"]
