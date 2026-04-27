@@ -113,6 +113,44 @@ class SolverTest(unittest.TestCase):
 
         self.assertEqual(sum(row["drive_min"] for row in itinerary.leg_rows()), 2)
 
+    def test_nearby_penalty_discourages_duplicate_close_hotspots(self):
+        hotspots = pd.DataFrame(
+            {
+                "locId": ["a", "b", "c"],
+                "locName": ["A", "B", "C"],
+            }
+        )
+        travel = [
+            [0, 1, 10],
+            [1, 0, 10],
+            [10, 10, 0],
+        ]
+        probabilities = {
+            "a": {"a_sp": 0.50},
+            "b": {"b_sp": 0.50},
+            "c": {"c_sp": 0.49},
+        }
+
+        itinerary = solve_itinerary(
+            hotspots,
+            travel,
+            probabilities,
+            include_depot=False,
+            start_time=dt.datetime(2026, 5, 2, 5, 30),
+            end_time=dt.datetime(2026, 5, 2, 9, 30),
+            base_idle=0,
+            dwell_per=0,
+            min_stops=2,
+            max_stops=2,
+            min_prob=0.0,
+            nearby_drive_min=2,
+            nearby_pair_penalty=0.20,
+            time_limit=5,
+        )
+
+        selected = {hotspots.locId.iloc[idx] for idx in itinerary.route_idx}
+        self.assertNotEqual(selected, {"a", "b"})
+
 
 if __name__ == "__main__":
     unittest.main()

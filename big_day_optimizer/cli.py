@@ -69,6 +69,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Minimum species-hotspot probability retained by the optimizer")
     p.add_argument("--max_stops", type=int, default=8,
                    help="Hard cap on hotspots in the final itinerary")
+    p.add_argument("--nearby-drive-min", type=int, default=8,
+                   help="Hotspots this many drive minutes apart are treated as nearby")
+    p.add_argument("--nearby-pair-penalty", type=float, default=0.15,
+                   help="Expected-species penalty for selecting two nearby hotspots")
     
     return p
 
@@ -94,6 +98,8 @@ def main(argv=None):
         max_checklists_per_day = args.max_checklists_per_day,
         max_hotspots = args.max_hotspots,
         min_prob = args.min_prob,
+        nearby_drive_min = args.nearby_drive_min,
+        nearby_pair_penalty = args.nearby_pair_penalty,
         start_time    = args.start_time,
         end_time      = args.end_time,
         include_depot = args.depot_id is not None,

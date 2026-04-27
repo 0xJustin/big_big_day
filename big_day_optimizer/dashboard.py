@@ -38,6 +38,8 @@ class DashboardConfig:
     max_stops: int
     min_prob: float
     display_min_prob: float
+    nearby_drive_min: int
+    nearby_pair_penalty: float
     base_idle: int
     dwell_per: int
     time_limit: int
@@ -47,29 +49,58 @@ def _page_style() -> None:
     st.markdown(
         """
         <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,850;9..144,900&family=IBM+Plex+Sans:wght@400;500;600;700;800&display=swap');
+
         :root {
-            --bbd-ink: #142117;
-            --bbd-strong: #0a120d;
-            --bbd-muted: #3f5146;
-            --bbd-line: #c8d2c5;
-            --bbd-panel: #fffdf5;
-            --bbd-sidebar: #f1eadb;
-            --bbd-field: #fffaf0;
-            --bbd-field-border: #677766;
-            --bbd-accent: #1f3a2a;
-            --bbd-accent-hover: #31553d;
-            --bbd-info-bg: #d8ecf5;
+            --bbd-ink: #162019;
+            --bbd-strong: #07110b;
+            --bbd-muted: #4d5b50;
+            --bbd-faint: #71806f;
+            --bbd-line: #c5cfbd;
+            --bbd-line-strong: #8ea083;
+            --bbd-panel: #fffbef;
+            --bbd-panel-soft: #f6efdf;
+            --bbd-sidebar: #ede3cf;
+            --bbd-field: #fff9ea;
+            --bbd-field-border: #62745e;
+            --bbd-accent: #1d402d;
+            --bbd-accent-hover: #2b6041;
+            --bbd-highlight: #c9df63;
+            --bbd-rust: #b3572f;
+            --bbd-sky: #d8eef0;
+            --bbd-info-bg: #dbeef2;
             --bbd-info-text: #103445;
+            --bbd-shadow: 0 22px 60px rgba(23, 33, 23, 0.12);
+            --bbd-soft-shadow: 0 12px 30px rgba(23, 33, 23, 0.08);
+            --bbd-serif: "Fraunces", Georgia, serif;
+            --bbd-sans: "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
         }
 
         html, body, .stApp {
+            font-family: var(--bbd-sans) !important;
             color: var(--bbd-ink) !important;
         }
 
         .stApp {
             background:
-                radial-gradient(circle at top left, rgba(178, 207, 152, 0.26), transparent 30rem),
-                linear-gradient(135deg, #f7f3e8 0%, #eef3e7 52%, #fbf8ee 100%);
+                radial-gradient(circle at 12% 8%, rgba(201, 223, 99, 0.34), transparent 20rem),
+                radial-gradient(circle at 84% 14%, rgba(109, 157, 127, 0.22), transparent 22rem),
+                linear-gradient(120deg, #f6efdd 0%, #eef4e8 44%, #fbf4df 100%);
+        }
+
+        .stApp::before {
+            background-image:
+                linear-gradient(rgba(19, 35, 23, 0.035) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(19, 35, 23, 0.035) 1px, transparent 1px);
+            background-size: 34px 34px;
+            bottom: 0;
+            content: "";
+            left: 0;
+            pointer-events: none;
+            position: fixed;
+            right: 0;
+            top: 0;
+            z-index: 0;
         }
 
         [data-testid="stAppViewContainer"],
@@ -87,7 +118,9 @@ def _page_style() -> None:
             background-color: transparent !important;
             box-shadow: none !important;
             max-width: none;
-            padding: 2rem clamp(1.25rem, 4vw, 4rem) 3rem;
+            padding: 2.1rem clamp(1.05rem, 4vw, 4.5rem) 3.5rem;
+            position: relative;
+            z-index: 1;
         }
 
         [data-testid="stMain"] [data-testid="stElementContainer"],
@@ -104,24 +137,72 @@ def _page_style() -> None:
         }
 
         [data-testid="stHeader"] {
-            background: #0d1310;
+            background:
+                linear-gradient(90deg, #07110b 0%, #122317 52%, #25381f 100%) !important;
+            border-bottom: 1px solid rgba(201, 223, 99, 0.22);
+        }
+
+        [data-testid="stHeader"] *,
+        [data-testid="stToolbar"] *,
+        [data-testid="stStatusWidget"] *,
+        [role="banner"] *,
+        header * {
+            color: #fff8e7 !important;
+            fill: #fff8e7 !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: #fff8e7 !important;
+        }
+
+        [data-testid="stHeader"] img,
+        [data-testid="stHeader"] svg,
+        [data-testid="stToolbar"] img,
+        [data-testid="stToolbar"] svg,
+        [data-testid="stStatusWidget"] img,
+        [data-testid="stStatusWidget"] svg,
+        [role="banner"] img,
+        [role="banner"] svg {
+            filter: brightness(0) invert(1);
         }
 
         [data-testid="stSidebar"] {
-            background: var(--bbd-sidebar);
-            border-right: 1px solid var(--bbd-line);
+            background: #fff9ea !important;
+            border-right: 1px solid rgba(98, 116, 94, 0.28);
+            box-shadow: 10px 0 42px rgba(25, 33, 23, 0.08);
         }
 
         [data-testid="stSidebar"] > div {
-            background: var(--bbd-sidebar);
+            background:
+                linear-gradient(180deg, #fff9ea 0%, #f7efdd 100%) !important;
         }
 
         [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
-            padding: 1.25rem 1.05rem 1.5rem;
+            background:
+                linear-gradient(180deg, #fff9ea 0%, #f7efdd 100%) !important;
+            box-sizing: border-box;
+            padding: 0 !important;
+            width: 100%;
         }
 
         [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
             gap: 0.45rem;
+            width: 100%;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stElementContainer"] {
+            box-sizing: border-box;
+            padding-left: 1.05rem;
+            padding-right: 1.05rem;
+            width: 100%;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stElementContainer"] > div {
+            box-sizing: border-box;
+            max-width: 100%;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stElementContainer"]:has(.bbd-sidebar-brand) {
+            padding-left: 0;
+            padding-right: 0;
         }
 
         .stApp h1,
@@ -137,6 +218,7 @@ def _page_style() -> None:
         .stApp div[data-testid="stMarkdownContainer"],
         .stApp div[data-testid="stWidgetLabel"] p {
             color: var(--bbd-ink) !important;
+            font-family: var(--bbd-sans) !important;
         }
 
         h1, h2, h3 {
@@ -144,10 +226,79 @@ def _page_style() -> None:
         }
 
         h1 {
-            font-size: 2.8rem;
-            line-height: 0.95;
+            font-family: var(--bbd-serif) !important;
+            font-size: clamp(3.1rem, 8vw, 6.6rem);
+            line-height: 0.84;
             color: var(--bbd-strong) !important;
-            margin-bottom: 0.65rem;
+            margin: 0;
+        }
+
+        h2, h3 {
+            font-family: var(--bbd-serif) !important;
+            color: var(--bbd-strong) !important;
+        }
+
+        .bbd-hero {
+            background:
+                linear-gradient(135deg, rgba(255, 251, 239, 0.96), rgba(242, 232, 210, 0.72)),
+                radial-gradient(circle at top right, rgba(201, 223, 99, 0.38), transparent 18rem);
+            border: 1px solid rgba(98, 116, 94, 0.24);
+            border-radius: 32px;
+            box-shadow: var(--bbd-shadow);
+            margin-bottom: 1.15rem;
+            overflow: hidden;
+            padding: clamp(1.35rem, 4vw, 3rem);
+            position: relative;
+        }
+
+        .bbd-hero::after {
+            background:
+                linear-gradient(90deg, rgba(7, 17, 11, 0.12), transparent),
+                repeating-linear-gradient(90deg, rgba(7, 17, 11, 0.15) 0 1px, transparent 1px 11px);
+            bottom: 0;
+            content: "";
+            height: 9px;
+            left: 0;
+            position: absolute;
+            right: 0;
+        }
+
+        .bbd-kicker {
+            align-items: center;
+            color: #344833 !important;
+            display: inline-flex;
+            font-size: 0.76rem;
+            font-weight: 900;
+            gap: 0.45rem;
+            letter-spacing: 0.16em;
+            margin-bottom: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        .bbd-kicker::before {
+            background: var(--bbd-highlight);
+            border: 1px solid rgba(7, 17, 11, 0.28);
+            border-radius: 999px;
+            content: "";
+            height: 0.7rem;
+            width: 0.7rem;
+        }
+
+        .bbd-hero-copy {
+            color: var(--bbd-muted) !important;
+            font-size: clamp(1rem, 1.5vw, 1.22rem);
+            line-height: 1.55;
+            margin: 0.9rem 0 0;
+            max-width: 760px;
+        }
+
+        .bbd-hero-meta {
+            color: var(--bbd-faint) !important;
+            font-size: 0.86rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            margin-top: 1.2rem;
+            text-transform: uppercase;
         }
 
         [data-testid="stSidebar"] h1,
@@ -167,7 +318,7 @@ def _page_style() -> None:
 
         [data-testid="stSidebar"] div[data-testid="stWidgetLabel"] p {
             color: var(--bbd-strong) !important;
-            font-size: 0.84rem !important;
+            font-size: 0.82rem !important;
             font-weight: 800 !important;
             letter-spacing: 0.01em;
             margin-bottom: 0.15rem !important;
@@ -204,8 +355,12 @@ def _page_style() -> None:
         [data-testid="stSidebar"] div[data-baseweb="select"],
         [data-testid="stSidebar"] div[data-baseweb="base-input"],
         [data-testid="stSidebar"] [data-testid="stNumberInput"] div[data-baseweb="input"] {
+            box-sizing: border-box !important;
             border-radius: 12px !important;
+            max-width: 100% !important;
             min-height: 2.45rem !important;
+            transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+            width: 100% !important;
         }
 
         [data-testid="stSidebar"] [data-testid="stTextInput"],
@@ -213,7 +368,10 @@ def _page_style() -> None:
         [data-testid="stSidebar"] [data-testid="stSelectbox"],
         [data-testid="stSidebar"] [data-testid="stNumberInput"],
         [data-testid="stSidebar"] [data-testid="stSlider"] {
+            box-sizing: border-box;
             margin-bottom: 0.35rem;
+            max-width: 100%;
+            width: 100%;
         }
 
         [data-testid="stSidebar"] [data-testid="stCheckbox"] {
@@ -261,6 +419,14 @@ def _page_style() -> None:
             box-shadow: none !important;
         }
 
+        div[data-baseweb="input"]:focus-within,
+        div[data-baseweb="select"]:focus-within,
+        div[data-baseweb="textarea"]:focus-within,
+        div[data-baseweb="base-input"]:focus-within {
+            border-color: #1d402d !important;
+            box-shadow: 0 0 0 3px rgba(201, 223, 99, 0.34) !important;
+        }
+
         input,
         textarea,
         [data-baseweb="select"] div,
@@ -298,29 +464,16 @@ def _page_style() -> None:
             color: var(--bbd-strong) !important;
         }
 
-        div[data-testid="stMetric"] {
-            background: var(--bbd-panel);
-            border: 1px solid var(--bbd-line);
-            border-radius: 18px;
-            padding: 1rem 1.1rem;
-            box-shadow: 0 14px 30px rgba(31, 46, 33, 0.07);
-        }
-
-        div[data-testid="stMetricLabel"] {
-            color: var(--bbd-muted) !important;
-        }
-
-        div[data-testid="stMetricValue"] {
-            color: var(--bbd-strong) !important;
-        }
-
         .stButton > button {
-            background: var(--bbd-accent) !important;
-            border: 1px solid var(--bbd-accent) !important;
+            background:
+                linear-gradient(135deg, var(--bbd-accent), #15311f) !important;
+            border: 1px solid rgba(7, 17, 11, 0.32) !important;
             border-radius: 999px;
             color: #fff8e7 !important;
-            font-weight: 700;
-            padding: 0.55rem 1.2rem;
+            box-shadow: 0 12px 24px rgba(29, 64, 45, 0.18);
+            font-weight: 800;
+            padding: 0.66rem 1.25rem;
+            transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
         }
 
         .stButton > button p,
@@ -331,23 +484,30 @@ def _page_style() -> None:
         .stButton > button:hover {
             background: var(--bbd-accent-hover) !important;
             border-color: var(--bbd-accent-hover) !important;
+            box-shadow: 0 16px 28px rgba(29, 64, 45, 0.22);
             color: #fff8e7 !important;
+            transform: translateY(-1px);
         }
 
         [data-testid="stAlert"] {
             background: var(--bbd-info-bg) !important;
             border: 1px solid #7fb2c5 !important;
+            border-radius: 18px !important;
+            min-height: unset !important;
         }
 
         [data-testid="stAlert"] *,
-        [data-testid="stAlert"] p {
+        [data-testid="stAlert"] p,
+        [data-testid="stAlert"] div[data-testid="stMarkdownContainer"] {
             color: var(--bbd-info-text) !important;
+            opacity: 1 !important;
         }
 
         [data-testid="stDataFrame"] {
             border: 1px solid var(--bbd-line);
-            border-radius: 14px;
+            border-radius: 18px;
             overflow: hidden;
+            box-shadow: var(--bbd-soft-shadow);
         }
 
         .bbd-subtitle {
@@ -358,10 +518,43 @@ def _page_style() -> None:
             margin-bottom: 0.85rem;
         }
 
+        .bbd-sidebar-brand {
+            background:
+                linear-gradient(135deg, #172318, #2e4a2a);
+            border: 1px solid rgba(201, 223, 99, 0.28);
+            border-left: 0;
+            border-radius: 0 0 22px 22px;
+            border-right: 0;
+            border-top: 0;
+            box-shadow: 0 18px 34px rgba(20, 33, 23, 0.14);
+            margin: 0 0 1rem;
+            padding: 1.15rem 1.2rem 1.25rem;
+            width: 100%;
+        }
+
+        .bbd-sidebar-brand span {
+            color: #c9df63 !important;
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 900;
+            letter-spacing: 0.14em;
+            margin-bottom: 0.3rem;
+            text-transform: uppercase;
+        }
+
+        .bbd-sidebar-brand strong {
+            color: #fff8e7 !important;
+            display: block;
+            font-family: var(--bbd-serif);
+            font-size: 1.55rem;
+            letter-spacing: -0.04em;
+            line-height: 1;
+        }
+
         .bbd-help {
-            background: #fff8e8;
+            background: rgba(255, 248, 232, 0.92);
             border: 1px solid #d5c9a9;
-            border-radius: 12px;
+            border-radius: 16px;
             color: var(--bbd-strong) !important;
             font-size: 0.9rem;
             line-height: 1.42;
@@ -375,7 +568,8 @@ def _page_style() -> None:
 
         .bbd-sidebar-title {
             color: var(--bbd-strong) !important;
-            font-size: 1.55rem;
+            font-family: var(--bbd-serif);
+            font-size: 1.45rem;
             font-weight: 900;
             letter-spacing: -0.045em;
             line-height: 1;
@@ -400,7 +594,8 @@ def _page_style() -> None:
 
         [data-testid="stSidebar"] details {
             border-color: var(--bbd-line) !important;
-            border-radius: 12px !important;
+            border-radius: 16px !important;
+            background: rgba(255, 251, 239, 0.55) !important;
         }
 
         [data-testid="stSidebar"] summary p {
@@ -412,22 +607,29 @@ def _page_style() -> None:
         .bbd-callout,
         .bbd-stop-card,
         .bbd-route-summary {
-            background: rgba(255, 253, 245, 0.94);
+            background: rgba(255, 251, 239, 0.94);
             border: 1px solid var(--bbd-line);
-            border-radius: 18px;
-            box-shadow: 0 12px 30px rgba(20, 33, 23, 0.07);
+            border-radius: 24px;
+            box-shadow: var(--bbd-soft-shadow);
         }
 
         .bbd-callout {
+            border-left: 8px solid var(--bbd-highlight);
             margin: 1rem 0 1.25rem;
-            padding: 1rem 1.15rem;
+            padding: 1rem 1.15rem 1rem 1.35rem;
         }
 
         .bbd-callout-title,
         .bbd-stop-title {
             color: var(--bbd-strong) !important;
-            font-weight: 800;
+            font-weight: 900;
             margin-bottom: 0.25rem;
+        }
+
+        .bbd-callout-title {
+            font-family: var(--bbd-serif);
+            font-size: 1.25rem;
+            letter-spacing: -0.025em;
         }
 
         .bbd-callout-body,
@@ -443,7 +645,8 @@ def _page_style() -> None:
 
         .bbd-stop-number {
             align-items: center;
-            background: var(--bbd-accent);
+            background: #122317;
+            border: 2px solid var(--bbd-highlight);
             border-radius: 999px;
             color: #fff8e7 !important;
             display: inline-flex;
@@ -463,23 +666,24 @@ def _page_style() -> None:
         }
 
         .bbd-chip {
-            background: #eaf2df;
-            border: 1px solid #c9d8bd;
+            background: #edf4df;
+            border: 1px solid #c2d4b1;
             border-radius: 999px;
             color: var(--bbd-strong) !important;
             display: inline-block;
             font-size: 0.88rem;
-            padding: 0.28rem 0.62rem;
+            font-weight: 650;
+            padding: 0.3rem 0.66rem;
         }
 
         .bbd-specialty-chip {
             background: #fff0c2;
-            border-color: #d3a83b;
+            border-color: #c68e24;
         }
 
         .bbd-rare-chip {
-            background: #fde6c8;
-            border-color: #d38a38;
+            background: #fee3c2;
+            border-color: var(--bbd-rust);
         }
 
         .bbd-common-chip {
@@ -516,10 +720,11 @@ def _page_style() -> None:
 
         .bbd-section-title {
             color: var(--bbd-strong) !important;
-            font-size: 1.45rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-            margin: 1.15rem 0 0.35rem;
+            font-family: var(--bbd-serif);
+            font-size: clamp(1.65rem, 3vw, 2.35rem);
+            font-weight: 850;
+            letter-spacing: -0.04em;
+            margin: 1.35rem 0 0.35rem;
         }
 
         .bbd-tooltip {
@@ -552,10 +757,134 @@ def _page_style() -> None:
             text-decoration: underline;
         }
 
+        .bbd-stat-grid {
+            display: grid;
+            gap: 0.85rem;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin: 1rem 0 1.1rem;
+        }
+
+        .bbd-stat-card {
+            background:
+                linear-gradient(180deg, rgba(255, 251, 239, 0.96), rgba(247, 239, 219, 0.92));
+            border: 1px solid rgba(98, 116, 94, 0.28);
+            border-radius: 24px;
+            box-shadow: var(--bbd-soft-shadow);
+            min-height: 8.2rem;
+            overflow: hidden;
+            padding: 1rem;
+            position: relative;
+        }
+
+        .bbd-stat-card::before {
+            background: var(--bbd-highlight);
+            content: "";
+            height: 0.4rem;
+            left: 1rem;
+            position: absolute;
+            right: 1rem;
+            top: 0;
+        }
+
+        .bbd-stat-label {
+            color: var(--bbd-muted) !important;
+            font-size: 0.76rem;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.58rem;
+            text-transform: uppercase;
+        }
+
+        .bbd-stat-value {
+            color: var(--bbd-strong) !important;
+            font-family: var(--bbd-serif);
+            font-size: clamp(2.15rem, 4vw, 3.35rem);
+            font-weight: 850;
+            letter-spacing: -0.06em;
+            line-height: 0.9;
+        }
+
+        .bbd-stat-caption {
+            color: var(--bbd-faint) !important;
+            font-size: 0.86rem;
+            font-weight: 700;
+            margin-top: 0.75rem;
+        }
+
+        [data-testid="stTabs"] [role="tablist"] {
+            background: rgba(255, 251, 239, 0.7);
+            border: 1px solid var(--bbd-line);
+            border-radius: 999px;
+            display: inline-flex;
+            gap: 0.2rem;
+            padding: 0.25rem;
+        }
+
+        [data-testid="stTabs"] [role="tab"] {
+            border-radius: 999px;
+            color: var(--bbd-muted) !important;
+            font-weight: 800;
+            padding: 0.3rem 0.9rem;
+        }
+
+        [data-testid="stTabs"] [aria-selected="true"] {
+            background: #122317 !important;
+            color: #fff8e7 !important;
+        }
+
         [data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"] {
-            background: rgba(255, 253, 245, 0.94);
+            background: rgba(255, 251, 239, 0.78);
             border-color: var(--bbd-line) !important;
-            box-shadow: 0 12px 30px rgba(20, 33, 23, 0.07);
+            border-radius: 20px !important;
+            box-shadow: 0 12px 30px rgba(20, 33, 23, 0.08);
+        }
+
+        [data-testid="stMain"] div[data-testid="stVerticalBlockBorderWrapper"] {
+            background: rgba(255, 251, 239, 0.88);
+            border-color: rgba(98, 116, 94, 0.28) !important;
+            border-radius: 26px !important;
+            box-shadow: var(--bbd-soft-shadow);
+        }
+
+        [data-testid="stMain"] div[data-testid="stVerticalBlockBorderWrapper"]:hover {
+            border-color: rgba(29, 64, 45, 0.38) !important;
+        }
+
+        html body header [data-testid="stToolbar"] *,
+        html body header [data-testid="stToolbar"] button,
+        html body header [data-testid="stToolbar"] button *,
+        html body header [data-testid="stStatusWidget"] *,
+        html body header [data-testid="stStatusWidget"] div,
+        html body header [data-testid="stStatusWidget"] span {
+            color: #fff8e7 !important;
+            fill: #fff8e7 !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: #fff8e7 !important;
+        }
+
+        @media (max-width: 900px) {
+            .block-container {
+                padding: 1rem 1rem 2rem;
+            }
+
+            .bbd-hero {
+                border-radius: 24px;
+                padding: 1.2rem;
+            }
+
+            .bbd-stat-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 520px) {
+            .bbd-stat-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .bbd-stat-card {
+                min-height: 6.8rem;
+            }
         }
         </style>
         """,
@@ -577,18 +906,34 @@ def _parse_observation_date(value: str) -> tuple[Optional[dt.date], Optional[str
 
 
 def _load_default_api_key() -> str:
-    try:
-        secrets_api_key = str(st.secrets.get("EBIRD_API_KEY", "")).strip()
-    except Exception:
-        secrets_api_key = ""
-    if secrets_api_key:
-        return secrets_api_key
-
     env_api_key = os.getenv("EBIRD_API_KEY", "").strip()
     if env_api_key:
         return env_api_key
 
-    token_path = Path(__file__).resolve().parents[1] / "ebird_token.json"
+    repo_root = Path(__file__).resolve().parents[1]
+    secrets_paths = [
+        Path.home() / ".streamlit" / "secrets.toml",
+        repo_root / ".streamlit" / "secrets.toml",
+    ]
+    for secrets_path in secrets_paths:
+        if not secrets_path.exists():
+            continue
+        try:
+            lines = secrets_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            if key.strip() != "EBIRD_API_KEY":
+                continue
+            secrets_api_key = value.strip().strip('"').strip("'")
+            if secrets_api_key:
+                return secrets_api_key
+
+    token_path = repo_root / "ebird_token.json"
     if not token_path.exists():
         return ""
 
@@ -611,7 +956,15 @@ def _read_config() -> DashboardConfig:
     default_api_key = _load_default_api_key()
 
     with st.sidebar:
-        st.markdown('<div class="bbd-sidebar-title">Run</div>', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="bbd-sidebar-brand">
+                <span>Big Day</span>
+                <strong>Route controls</strong>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.markdown('<div class="bbd-sidebar-section">Trip setup</div>', unsafe_allow_html=True)
         api_key = st.text_input("eBird API key", value=default_api_key, type="password")
         region = st.text_input("eBird region", value=DEFAULT_REGION)
@@ -692,6 +1045,22 @@ def _read_config() -> DashboardConfig:
                 0.01,
                 help="Keeps low-probability solver inputs from cluttering the stop cards and trip probability table.",
             )
+            st.markdown('<div class="bbd-sidebar-section">Nearby hotspot penalty</div>', unsafe_allow_html=True)
+            nearby_drive_min = st.number_input(
+                "Nearby if drive time is at most",
+                min_value=0,
+                max_value=30,
+                value=8,
+                help="Pairs of selected hotspots within this drive time receive a soft duplicate-location penalty. Set to 0 to disable.",
+            )
+            nearby_pair_penalty = st.slider(
+                "Expected-species penalty per nearby pair",
+                0.0,
+                1.0,
+                0.15,
+                0.05,
+                help="How much a second nearby hotspot must overcome with extra expected birds. It does not change the route time budget.",
+            )
             base_idle = st.number_input("Base dwell minutes", min_value=0, max_value=240, value=30)
             dwell_per = st.number_input("Minutes per expected new species", min_value=0, max_value=30, value=2)
             time_limit = st.number_input("Solver time limit seconds", min_value=5, max_value=900, value=60)
@@ -713,6 +1082,8 @@ def _read_config() -> DashboardConfig:
         max_stops=int(max_stops),
         min_prob=float(min_prob),
         display_min_prob=float(display_min_prob),
+        nearby_drive_min=int(nearby_drive_min),
+        nearby_pair_penalty=float(nearby_pair_penalty),
         base_idle=int(base_idle),
         dwell_per=int(dwell_per),
         time_limit=int(time_limit),
@@ -743,6 +1114,10 @@ def _validate(config: DashboardConfig) -> list[str]:
         errors.append("Future dates require at least one historical year; eBird has no future checklists.")
     if config.depot_locid is None and config.min_stops < 1:
         errors.append("Free-start routes need at least one stop.")
+    if config.nearby_drive_min < 0:
+        errors.append("Nearby hotspot drive threshold cannot be negative.")
+    if config.nearby_pair_penalty < 0:
+        errors.append("Nearby hotspot penalty cannot be negative.")
     return errors
 
 
@@ -763,6 +1138,8 @@ def _run_optimizer(config: DashboardConfig):
         min_stops=config.min_stops,
         max_stops=config.max_stops,
         min_prob=config.min_prob,
+        nearby_drive_min=config.nearby_drive_min,
+        nearby_pair_penalty=config.nearby_pair_penalty,
         base_idle=config.base_idle,
         dwell_per=config.dwell_per,
         time_limit=config.time_limit,
@@ -1059,11 +1436,18 @@ def _stop_probability_items(
         probability = float(itinerary.gain_matrix[hotspot_idx, species_idx])
         if probability < min_probability:
             continue
+        cumulative_probability = _combined_probability(
+            [
+                float(itinerary.gain_matrix[itinerary.route_idx[position], species_idx])
+                for position in range(route_position + 1)
+            ]
+        )
         items.append(
             {
                 "code": code,
                 "name": _common_species_name(code),
                 "probability": probability,
+                "cumulative_probability": cumulative_probability,
             }
         )
     return sorted(items, key=lambda item: float(item["probability"]), reverse=True)
@@ -1083,6 +1467,7 @@ def _classify_stop_birds(
     common_codes = common_codes if common_codes is not None else _common_species_codes(itinerary)
     specialty_codes = {code for code, _, _ in specialties}
     raw_items = _stop_probability_items(itinerary, stop_number, min_probability=min_probability)
+    raw_by_code = {str(item["code"]): item for item in raw_items}
 
     common = [
         item
@@ -1095,7 +1480,14 @@ def _classify_stop_birds(
         if str(item["code"]) not in common_codes and str(item["code"]) not in specialty_codes
     ]
     rare = [
-        {"code": code, "name": bird, "probability": probability}
+        {
+            "code": code,
+            "name": bird,
+            "probability": probability,
+            "cumulative_probability": float(
+                raw_by_code.get(code, {}).get("cumulative_probability", probability)
+            ),
+        }
         for code, bird, probability in specialties
     ]
     if max_common is not None:
@@ -1117,10 +1509,16 @@ def _chip_row_html(
         return f'<div class="bbd-chip-row"><span class="bbd-chip bbd-empty-chip">{html.escape(empty_text)}</span></div>'
 
     extra_class = f" {chip_class}" if chip_class else ""
-    chips = "".join(
-        f'<span class="bbd-chip{extra_class}">{html.escape(str(item["name"]))} {float(item["probability"]):.0%}</span>'
-        for item in items
-    )
+    chip_parts = []
+    for item in items:
+        stop_probability = float(item["probability"])
+        cumulative_probability = float(item.get("cumulative_probability", stop_probability))
+        chip_parts.append(
+            f'<span class="bbd-chip{extra_class}">'
+            f'{html.escape(str(item["name"]))} {stop_probability:.0%} / {cumulative_probability:.0%}'
+            f'</span>'
+        )
+    chips = "".join(chip_parts)
     return f'<div class="bbd-chip-row">{chips}</div>'
 
 
@@ -1148,6 +1546,31 @@ def _render_route_brief(summary_df: pd.DataFrame, total_drive: float, total_dwel
         """,
         unsafe_allow_html=True,
     )
+
+
+def _render_metric_cards(
+    itinerary,
+    *,
+    stop_count: int,
+    total_drive: float,
+    total_dwell: float,
+    finish_time: str,
+) -> None:
+    cards = [
+        ("Expected species", f"{itinerary.expected_species:.1f}", "probability-weighted"),
+        ("Stops", str(stop_count), "planned hotspots"),
+        ("Drive", _format_minutes(total_drive), "between stops"),
+        ("Birding", _format_minutes(total_dwell), f"finish {finish_time}"),
+    ]
+    card_html = "".join(
+        '<div class="bbd-stat-card">'
+        f'<div class="bbd-stat-label">{html.escape(label)}</div>'
+        f'<div class="bbd-stat-value">{html.escape(value)}</div>'
+        f'<div class="bbd-stat-caption">{html.escape(caption)}</div>'
+        '</div>'
+        for label, value, caption in cards
+    )
+    st.markdown(f'<div class="bbd-stat-grid">{card_html}</div>', unsafe_allow_html=True)
 
 
 def _render_route_charts(summary_df: pd.DataFrame) -> None:
@@ -1338,12 +1761,13 @@ def _render_results(itinerary, *, display_min_prob: float = 0.15) -> None:
     total_dwell = float(summary_df["Birding min"].sum()) if "Birding min" in summary_df else 0.0
     finish_time = summary_df.iloc[-1]["Depart"] if not summary_df.empty else "--"
 
-    metric_cols = st.columns(4)
-    metric_cols[0].metric("Expected species", f"{itinerary.expected_species:.1f}")
-    metric_cols[1].metric("Stops", str(len(itinerary.route_idx)))
-    metric_cols[2].metric("Drive", _format_minutes(total_drive))
-    metric_cols[3].metric("Finish", finish_time)
-
+    _render_metric_cards(
+        itinerary,
+        stop_count=len(itinerary.route_idx),
+        total_drive=total_drive,
+        total_dwell=total_dwell,
+        finish_time=finish_time,
+    )
     _render_route_brief(summary_df, total_drive, total_dwell, itinerary.expected_species)
     _render_stop_cards(itinerary, specialties_by_stop, display_min_prob=display_min_prob)
     _render_bird_highlights(specialties, shared)
@@ -1411,9 +1835,18 @@ def main() -> None:
     )
     _page_style()
 
-    st.title("Big Day Optimizer")
     st.markdown(
-        '<div class="bbd-subtitle">Build a one-day eBird route from checklist detection rates, drive time, and stop constraints.</div>',
+        """
+        <section class="bbd-hero">
+            <div class="bbd-kicker">Probability-aware eBird routing</div>
+            <h1>Big Day Optimizer</h1>
+            <p class="bbd-hero-copy">
+                Build a one-day route from checklist detection rates, drive time, dwell constraints,
+                and repeated chances for hard-to-get birds.
+            </p>
+            <div class="bbd-hero-meta">Default: Loudoun County · May 2, 2026 · 2 historical years</div>
+        </section>
+        """,
         unsafe_allow_html=True,
     )
 

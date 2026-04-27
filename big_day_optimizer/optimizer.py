@@ -85,6 +85,8 @@ class BigDayOptimizer:
     probability_steps: int = 100
 
     # solver settings
+    nearby_drive_min: int = 8
+    nearby_pair_penalty: float = 0.15
     time_limit: int = 60
 
     # internal cache
@@ -163,6 +165,8 @@ class BigDayOptimizer:
             min_prob=self.min_prob,
             int_scale=self.int_scale,
             probability_steps=self.probability_steps,
+            nearby_drive_min=self.nearby_drive_min,
+            nearby_pair_penalty=self.nearby_pair_penalty,
             time_limit=self.time_limit,
         )
         return iti

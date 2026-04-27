@@ -163,6 +163,8 @@ def solve_itinerary(
     min_prob: float = 0.03,
     int_scale: int = 1_000,
     probability_steps: int = 100,
+    nearby_drive_min: int = 8,
+    nearby_pair_penalty: float = 0.15,
     time_limit: int = 60,
 ):
     probabilities, sp_all = _build_probability_matrix(
@@ -217,6 +219,19 @@ def solve_itinerary(
         probability_steps=probability_steps,
     )
 
+    nearby_pairs: list[cp_model.IntVar] = []
+    if nearby_drive_min > 0 and nearby_pair_penalty > 0:
+        for i in range(n):
+            for j in range(i + 1, n):
+                pair_drive = min(int(travel[i][j]), int(travel[j][i]))
+                if pair_drive > nearby_drive_min:
+                    continue
+                pair = M.NewBoolVar(f"nearby_pair[{i},{j}]")
+                M.Add(pair <= visit[i])
+                M.Add(pair <= visit[j])
+                M.Add(pair >= visit[i] + visit[j] - 1)
+                nearby_pairs.append(pair)
+
     if include_depot:
         M.Add(sum(visit) - visit[START] >= min_stops)
         M.Add(sum(visit) - visit[START] <= max_stops)
@@ -235,10 +250,15 @@ def solve_itinerary(
     # Primary objective: expected unique species. Tie-breaks: less driving, then
     # fewer stops. The weights ensure a one-step species gain dominates any
     # possible travel/stop penalty within the day's time budget.
+    nearby_penalty_steps = int(round(max(0.0, nearby_pair_penalty) * probability_steps))
+    primary_score = sum(success_hits)
+    if nearby_pairs and nearby_penalty_steps:
+        primary_score -= nearby_penalty_steps * sum(nearby_pairs)
+
     travel_tie_weight = n + 1
     species_weight = travel_tie_weight * max(T_MAX, 0) + n + 1
     M.Maximize(
-        species_weight * sum(success_hits)
+        species_weight * primary_score
         - travel_tie_weight * travel_part
         - sum(visit)
     )

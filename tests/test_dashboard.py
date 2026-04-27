@@ -121,6 +121,7 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual([item["name"] for item in groups["common"]], ["Canada Goose"])
         self.assertEqual([item["name"] for item in groups["uncommon"]], ["Mallard"])
         self.assertEqual([item["name"] for item in groups["rare"]], ["American Crow"])
+        self.assertAlmostEqual(groups["common"][0]["cumulative_probability"], 0.9)
 
     def test_route_species_probability_combines_small_chances(self):
         class FakeItinerary:
@@ -167,6 +168,8 @@ class DashboardTest(unittest.TestCase):
             max_stops=8,
             min_prob=0.15,
             display_min_prob=0.15,
+            nearby_drive_min=8,
+            nearby_pair_penalty=0.15,
             base_idle=30,
             dwell_per=2,
             time_limit=60,
