@@ -57,11 +57,11 @@ class DashboardTest(unittest.TestCase):
         itinerary = _load_preloaded_loudoun_itinerary()
         summary = _summary_dataframe(itinerary)
 
-        self.assertEqual(summary.loc[0, "Site"], "Riverpoint Drive Trailhead")
-        self.assertEqual(summary.loc[0, "eBird hotspot"], "https://ebird.org/hotspot/L15739293")
+        self.assertEqual(summary.loc[0, "Site"], "Algonkian Regional Park--Sanctuary Trail")
+        self.assertEqual(summary.loc[0, "eBird hotspot"], "https://ebird.org/hotspot/L4946002")
         self.assertGreater(itinerary.expected_species, 40)
         self.assertEqual(len(itinerary.route_idx), 8)
-        self.assertIn("American Robin", summary.loc[0, "Top new birds"])
+        self.assertIn("Blue-gray Gnatcatcher", summary.loc[0, "Top new birds"])
 
     def test_public_deployment_does_not_prefill_api_key(self):
         with mock.patch.dict(
