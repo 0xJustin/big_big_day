@@ -58,7 +58,7 @@ gcloud config set project YOUR_PROJECT_ID
 scripts/deploy_cloud_run.sh
 ```
 
-The deploy script uses the included `Dockerfile`, exposes Streamlit on Cloud Run's `PORT`, and sets `BBD_PUBLIC_DEPLOYMENT=1`.
+The deploy script uses the included `Dockerfile`, exposes Streamlit on Cloud Run's `PORT`, sets `BBD_PUBLIC_DEPLOYMENT=1`, and disables the Cloud Run Invoker IAM check so it can be public even under domain-restricted sharing organization policies.
 
 ### Streamlit Community Cloud
 

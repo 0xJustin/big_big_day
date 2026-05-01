@@ -33,6 +33,7 @@ Defaults:
 - timeout: `900s`
 - max instances: `3`
 - env: `BBD_PUBLIC_DEPLOYMENT=1`
+- public access: Cloud Run Invoker IAM check disabled with `--no-invoker-iam-check`
 
 Override with environment variables, for example:
 

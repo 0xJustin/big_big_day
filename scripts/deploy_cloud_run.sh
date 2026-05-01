@@ -14,7 +14,7 @@ gcloud run deploy "$service" \
   --project "$project" \
   --region "$region" \
   --source . \
-  --allow-unauthenticated \
+  --no-invoker-iam-check \
   --port 8501 \
   --memory "${MEMORY:-2Gi}" \
   --cpu "${CPU:-2}" \
