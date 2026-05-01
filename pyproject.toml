@@ -29,4 +29,4 @@ big-day-optimizer = "big_day_optimizer.cli:main"
 include = ["big_day_optimizer*"]
 
 [tool.setuptools.package-data]
-big_day_optimizer = ["data/*.csv"]
+big_day_optimizer = ["data/*.csv", "data/*.json"]

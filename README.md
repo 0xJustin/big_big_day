@@ -46,12 +46,26 @@ Do not commit a real token. `ebird_token.json` and `.streamlit/secrets.toml` are
 
 ## Deploy For Non-Technical Users
 
-The easiest public deployment is Streamlit Community Cloud:
+The easiest public deployment for this repo is Cloud Run or Streamlit Community Cloud.
+
+For a public deployment, do not preconfigure a shared eBird token. Set `BBD_PUBLIC_DEPLOYMENT=1` so the dashboard never reads local token files or `EBIRD_API_KEY`; users paste their own eBird API key into the password field for each session.
+
+### Cloud Run
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+scripts/deploy_cloud_run.sh
+```
+
+The deploy script uses the included `Dockerfile`, exposes Streamlit on Cloud Run's `PORT`, and sets `BBD_PUBLIC_DEPLOYMENT=1`.
+
+### Streamlit Community Cloud
 
 1. Push this repository to GitHub.
 2. Create a Streamlit app from `0xJustin/big_big_day`.
 3. Set the app file to `dashboard.py`.
-4. Add `EBIRD_API_KEY` in Streamlit secrets.
+4. Set `BBD_PUBLIC_DEPLOYMENT = "1"` in Streamlit secrets or environment.
 5. Share the Streamlit URL directly, or embed it on a website.
 
 The website in `~/Projects/website` is a static Astro site, so it cannot run this Python optimizer by itself. Use a hosted Streamlit app and add either a normal link or an iframe:

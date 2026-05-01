@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 import datetime as dt
 import numpy as np
@@ -9,6 +10,9 @@ from big_day_optimizer.dashboard import (
     _bird_highlight_frames,
     _classify_stop_birds,
     _format_minutes,
+    _is_public_deployment,
+    _load_default_api_key,
+    _load_preloaded_loudoun_itinerary,
     _parse_observation_date,
     _route_species_probability_frame,
     _summary_dataframe,
@@ -48,6 +52,25 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(_format_minutes(95), "1h 35m")
         self.assertEqual(_format_minutes(60), "1h")
         self.assertEqual(_format_minutes(42), "42m")
+
+    def test_preloaded_loudoun_itinerary_renders_like_optimizer_output(self):
+        itinerary = _load_preloaded_loudoun_itinerary()
+        summary = _summary_dataframe(itinerary)
+
+        self.assertEqual(summary.loc[0, "Site"], "Riverpoint Drive Trailhead")
+        self.assertEqual(summary.loc[0, "eBird hotspot"], "https://ebird.org/hotspot/L15739293")
+        self.assertGreater(itinerary.expected_species, 40)
+        self.assertEqual(len(itinerary.route_idx), 8)
+        self.assertIn("American Robin", summary.loc[0, "Top new birds"])
+
+    def test_public_deployment_does_not_prefill_api_key(self):
+        with mock.patch.dict(
+            "os.environ",
+            {"BBD_PUBLIC_DEPLOYMENT": "1", "EBIRD_API_KEY": "secret-token"},
+            clear=False,
+        ):
+            self.assertTrue(_is_public_deployment())
+            self.assertEqual(_load_default_api_key(), "")
 
     def test_summary_dataframe_keeps_species_compact(self):
         class FakeItinerary:

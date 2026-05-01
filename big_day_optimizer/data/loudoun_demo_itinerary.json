@@ -1,0 +1,182 @@
+{
+  "region": "US-VA-107",
+  "observation_date": "2026-05-02",
+  "start_time": "2026-05-02T05:30:00",
+  "base_idle": 30,
+  "dwell_per": 2,
+  "notes": "Bundled startup route for Loudoun County. It is a static demo snapshot so the dashboard can render immediately without calling eBird or the solver.",
+  "stops": [
+    {
+      "locId": "L15739293",
+      "locName": "Riverpoint Drive Trailhead",
+      "lat": 39.156,
+      "lng": -77.545,
+      "drive_from_previous_min": 0,
+      "species": {
+        "cangoo": 0.82,
+        "mallar3": 0.72,
+        "belkin1": 0.45,
+        "grbher3": 0.56,
+        "pibgre": 0.35,
+        "gnwtea": 0.25,
+        "warvir": 0.44,
+        "nrwswa": 0.62,
+        "treswa": 0.52,
+        "orcori": 0.45,
+        "yebcha": 0.35,
+        "indbun": 0.42,
+        "comyel": 0.52,
+        "reevir1": 0.45
+      }
+    },
+    {
+      "locId": "L20671281",
+      "locName": "Algonkian Regional Park--White Trail",
+      "lat": 39.058,
+      "lng": -77.369,
+      "drive_from_previous_min": 22,
+      "species": {
+        "bawwar": 0.55,
+        "prowar": 0.45,
+        "norwat": 0.35,
+        "ovenbi1": 0.50,
+        "woothr": 0.45,
+        "scatan": 0.55,
+        "yetwar": 0.35,
+        "yebcuc": 0.30,
+        "btbwar": 0.25,
+        "haiwoo": 0.30
+      }
+    },
+    {
+      "locId": "L585707",
+      "locName": "Beaverdam Creek Reservoir",
+      "lat": 39.0141155,
+      "lng": -77.5397873,
+      "drive_from_previous_min": 35,
+      "species": {
+        "comloo": 0.45,
+        "doccor": 0.65,
+        "osprey": 0.65,
+        "baleag": 0.35,
+        "wooduc": 0.45,
+        "sposan": 0.35,
+        "prawar": 0.30,
+        "coohaw": 0.25,
+        "ribgul": 0.20,
+        "whevir": 0.35
+      }
+    },
+    {
+      "locId": "L295565",
+      "locName": "Morven Park",
+      "lat": 39.134,
+      "lng": -77.573,
+      "drive_from_previous_min": 26,
+      "species": {
+        "easmea": 0.45,
+        "rehwoo": 0.35,
+        "amered": 0.45,
+        "chiswi": 0.55,
+        "eursta": 0.65,
+        "yelwar": 0.35,
+        "yebsap": 0.25,
+        "ruckin": 0.25,
+        "gockin": 0.25,
+        "daejun": 0.20
+      }
+    },
+    {
+      "locId": "L14602121",
+      "locName": "Broad Run Stream Valley Park",
+      "lat": 39.023,
+      "lng": -77.489,
+      "drive_from_previous_min": 27,
+      "species": {
+        "camwar": 0.35,
+        "babwar": 0.25,
+        "btnwar": 0.45,
+        "chswar": 0.35,
+        "buhvir": 0.30,
+        "solsan": 0.25,
+        "savspa": 0.35,
+        "graspa": 0.30,
+        "blugrb1": 0.35,
+        "swaspa": 0.25,
+        "cedwax": 0.50,
+        "comrav": 0.35
+      }
+    },
+    {
+      "locId": "L295870",
+      "locName": "Rust Nature Sanctuary",
+      "lat": 39.119,
+      "lng": -77.559,
+      "drive_from_previous_min": 25,
+      "species": {
+        "brnthr": 0.45,
+        "magwar": 0.35,
+        "naswar": 0.25,
+        "palwar": 0.35,
+        "herthr": 0.25,
+        "swathr": 0.25,
+        "woewar1": 0.30,
+        "grnher": 0.35,
+        "wiltur": 0.25
+      }
+    },
+    {
+      "locId": "",
+      "locName": "Sweet Run SP--Arnold Lane",
+      "lat": 39.226,
+      "lng": -77.742,
+      "drive_from_previous_min": 34,
+      "species": {
+        "acafly": 0.55,
+        "cerwar": 0.25,
+        "kenwar": 0.30,
+        "louwat": 0.55,
+        "eawpew": 0.45,
+        "yetvir": 0.40,
+        "purfin": 0.25,
+        "rthhum": 0.35,
+        "amekes": 0.25,
+        "purmar": 0.20
+      }
+    },
+    {
+      "locId": "",
+      "locName": "Sweet Run SP--Visitor Center",
+      "lat": 39.216,
+      "lng": -77.724,
+      "drive_from_previous_min": 6,
+      "species": {
+        "veery": 0.45,
+        "brwhaw": 0.35,
+        "rebnut": 0.25,
+        "pilwoo": 0.30,
+        "hoowar": 0.30
+      }
+    }
+  ],
+  "shared_species": {
+    "amerob": [0.86, 0.74, 0.62, 0.72, 0.68, 0.66, 0.55, 0.50],
+    "norcar": [0.82, 0.78, 0.70, 0.72, 0.68, 0.70, 0.62, 0.58],
+    "carchi": [0.76, 0.72, 0.58, 0.62, 0.60, 0.66, 0.58, 0.55],
+    "carwre": [0.72, 0.70, 0.52, 0.56, 0.54, 0.62, 0.55, 0.48],
+    "tuftit": [0.70, 0.72, 0.54, 0.58, 0.55, 0.62, 0.58, 0.52],
+    "blujay": [0.66, 0.62, 0.48, 0.58, 0.52, 0.56, 0.50, 0.45],
+    "dowwoo": [0.54, 0.55, 0.36, 0.42, 0.38, 0.45, 0.40, 0.35],
+    "rebwoo": [0.58, 0.60, 0.42, 0.48, 0.44, 0.48, 0.42, 0.38],
+    "whbnut": [0.45, 0.48, 0.32, 0.38, 0.34, 0.42, 0.38, 0.34],
+    "amecro": [0.62, 0.50, 0.46, 0.55, 0.48, 0.52, 0.44, 0.40],
+    "bnhcow": [0.52, 0.48, 0.34, 0.46, 0.44, 0.40, 0.34, 0.30],
+    "comgra": [0.55, 0.45, 0.44, 0.50, 0.48, 0.42, 0.34, 0.30],
+    "houfin": [0.46, 0.42, 0.38, 0.52, 0.44, 0.40, 0.30, 0.28],
+    "grycat": [0.42, 0.44, 0.34, 0.46, 0.40, 0.44, 0.35, 0.32],
+    "sonspa": [0.45, 0.36, 0.42, 0.40, 0.38, 0.34, 0.28, 0.25],
+    "easpho": [0.34, 0.36, 0.28, 0.32, 0.30, 0.34, 0.28, 0.25],
+    "moudov": [0.54, 0.48, 0.40, 0.55, 0.44, 0.42, 0.32, 0.30],
+    "turvul": [0.52, 0.45, 0.48, 0.50, 0.48, 0.45, 0.42, 0.38]
+  }
+}

@@ -2,26 +2,73 @@
 
 This project is a Python + Streamlit app. For non-technical users, deploy the dashboard once and give them a web link.
 
+## Public API-key policy
+
+Public deployments should require each user to provide their own eBird API key. Do not deploy with a shared `EBIRD_API_KEY`.
+
+Set this environment variable in hosted environments:
+
+```bash
+BBD_PUBLIC_DEPLOYMENT=1
+```
+
+When enabled, the dashboard does not read `EBIRD_API_KEY`, `.streamlit/secrets.toml`, or `ebird_token.json`. The key a user enters is used only by their Streamlit session to call eBird.
+
+## Cloud Run
+
+The included `Dockerfile` and deploy helper run Streamlit as a public Cloud Run service:
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+scripts/deploy_cloud_run.sh
+```
+
+Defaults:
+
+- service: `big-day-optimizer`
+- region: `us-east1`
+- memory: `2Gi`
+- CPU: `2`
+- timeout: `900s`
+- max instances: `3`
+- env: `BBD_PUBLIC_DEPLOYMENT=1`
+
+Override with environment variables, for example:
+
+```bash
+REGION=us-central1 MAX_INSTANCES=5 scripts/deploy_cloud_run.sh
+```
+
+For a custom subdomain such as `big-day.ellis-joyce.com`, create a Cloud Run domain mapping after deploy and follow the DNS instructions printed by Google Cloud:
+
+```bash
+gcloud beta run domain-mappings create \
+  --service big-day-optimizer \
+  --domain big-day.ellis-joyce.com \
+  --region us-east1
+```
+
 ## Streamlit Community Cloud
 
-Recommended setup:
+Alternative setup:
 
 - Repository: `0xJustin/big_big_day`
 - Branch: `main`
 - Main file path: `dashboard.py`
 - Python version: 3.10 or newer
-- Secret: `EBIRD_API_KEY`
+- Environment or secret: `BBD_PUBLIC_DEPLOYMENT = "1"`
 
 Steps:
 
 1. Go to Streamlit Community Cloud and create a new app.
 2. Select the GitHub repository.
 3. Use `dashboard.py` as the app entrypoint.
-4. Open the app secrets settings.
+4. Open the app secrets or environment settings.
 5. Add:
 
 ```toml
-EBIRD_API_KEY = "paste-your-ebird-api-key-here"
+BBD_PUBLIC_DEPLOYMENT = "1"
 ```
 
 Streamlit will install from `requirements.txt`. The package metadata in `pyproject.toml` is included for local editable installs and CLI use.

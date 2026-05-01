@@ -6,18 +6,23 @@ import html
 import json
 import math
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
 from .optimizer import BigDayOptimizer
+from .solver import Itinerary
 from .utils import translate_codes
 
 
 DEFAULT_REGION = "US-VA-107"
 DEFAULT_OBSERVATION_DATE = dt.date(2026, 5, 2)
+PUBLIC_DEPLOYMENT_ENV = "BBD_PUBLIC_DEPLOYMENT"
+EBIRD_API_HELP_URL = "https://support.ebird.org/en/support/solutions/articles/48000838205-download-ebird-data"
 
 
 @dataclass(frozen=True)
@@ -49,31 +54,36 @@ def _page_style() -> None:
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,850;9..144,900&family=IBM+Plex+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700;800;900&family=Source+Serif+4:opsz,wght@8..60,700;8..60,850&display=swap');
 
         :root {
-            --bbd-ink: #162019;
-            --bbd-strong: #07110b;
-            --bbd-muted: #4d5b50;
-            --bbd-faint: #71806f;
-            --bbd-line: #c5cfbd;
-            --bbd-line-strong: #8ea083;
-            --bbd-panel: #fffbef;
-            --bbd-panel-soft: #f6efdf;
-            --bbd-sidebar: #ede3cf;
-            --bbd-field: #fff9ea;
-            --bbd-field-border: #62745e;
-            --bbd-accent: #1d402d;
-            --bbd-accent-hover: #2b6041;
-            --bbd-highlight: #c9df63;
-            --bbd-rust: #b3572f;
-            --bbd-sky: #d8eef0;
-            --bbd-info-bg: #dbeef2;
-            --bbd-info-text: #103445;
-            --bbd-shadow: 0 22px 60px rgba(23, 33, 23, 0.12);
-            --bbd-soft-shadow: 0 12px 30px rgba(23, 33, 23, 0.08);
-            --bbd-serif: "Fraunces", Georgia, serif;
-            --bbd-sans: "IBM Plex Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+            --bbd-ink: #243238;
+            --bbd-strong: #10252d;
+            --bbd-muted: #54656b;
+            --bbd-faint: #748186;
+            --bbd-line: #ccd7d5;
+            --bbd-line-strong: #8fa6a2;
+            --bbd-panel: #fffdf8;
+            --bbd-panel-soft: #f5f4ee;
+            --bbd-sidebar: #f1f4ef;
+            --bbd-field: #fffdf8;
+            --bbd-field-border: #91a39e;
+            --bbd-accent: #007b78;
+            --bbd-accent-hover: #00635f;
+            --bbd-accent-soft: #dcefed;
+            --bbd-banner: #3d6377;
+            --bbd-banner-dark: #31556a;
+            --bbd-banner-light: #d9e7ed;
+            --bbd-highlight: #80bc42;
+            --bbd-rust: #b45d3f;
+            --bbd-gold: #b9892d;
+            --bbd-sky: #e5eff1;
+            --bbd-info-bg: #e8f1f2;
+            --bbd-info-text: #17464e;
+            --bbd-shadow: 0 8px 18px rgba(23, 47, 57, 0.10);
+            --bbd-soft-shadow: 0 4px 12px rgba(23, 47, 57, 0.07);
+            --bbd-serif: "Source Serif 4", Georgia, serif;
+            --bbd-sans: "Source Sans 3", "Avenir Next", "Helvetica Neue", sans-serif;
         }
 
         html, body, .stApp {
@@ -82,25 +92,7 @@ def _page_style() -> None:
         }
 
         .stApp {
-            background:
-                radial-gradient(circle at 12% 8%, rgba(201, 223, 99, 0.34), transparent 20rem),
-                radial-gradient(circle at 84% 14%, rgba(109, 157, 127, 0.22), transparent 22rem),
-                linear-gradient(120deg, #f6efdd 0%, #eef4e8 44%, #fbf4df 100%);
-        }
-
-        .stApp::before {
-            background-image:
-                linear-gradient(rgba(19, 35, 23, 0.035) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(19, 35, 23, 0.035) 1px, transparent 1px);
-            background-size: 34px 34px;
-            bottom: 0;
-            content: "";
-            left: 0;
-            pointer-events: none;
-            position: fixed;
-            right: 0;
-            top: 0;
-            z-index: 0;
+            background: #f4f6f2;
         }
 
         [data-testid="stAppViewContainer"],
@@ -118,7 +110,7 @@ def _page_style() -> None:
             background-color: transparent !important;
             box-shadow: none !important;
             max-width: none;
-            padding: 2.1rem clamp(1.05rem, 4vw, 4.5rem) 3.5rem;
+            padding: 1.75rem clamp(1rem, 3vw, 3rem) 3.5rem;
             position: relative;
             z-index: 1;
         }
@@ -137,9 +129,15 @@ def _page_style() -> None:
         }
 
         [data-testid="stHeader"] {
-            background:
-                linear-gradient(90deg, #07110b 0%, #122317 52%, #25381f 100%) !important;
-            border-bottom: 1px solid rgba(201, 223, 99, 0.22);
+            background: transparent !important;
+            border: 0 !important;
+            height: 0 !important;
+            min-height: 0 !important;
+        }
+
+        [data-testid="stToolbar"],
+        [data-testid="stStatusWidget"] {
+            display: none !important;
         }
 
         [data-testid="stHeader"] *,
@@ -165,19 +163,19 @@ def _page_style() -> None:
         }
 
         [data-testid="stSidebar"] {
-            background: #fff9ea !important;
-            border-right: 1px solid rgba(98, 116, 94, 0.28);
-            box-shadow: 10px 0 42px rgba(25, 33, 23, 0.08);
+            background: var(--bbd-sidebar) !important;
+            border-right: 1px solid rgba(96, 113, 112, 0.26);
+            box-shadow: 5px 0 18px rgba(25, 44, 49, 0.06);
         }
 
         [data-testid="stSidebar"] > div {
             background:
-                linear-gradient(180deg, #fff9ea 0%, #f7efdd 100%) !important;
+                linear-gradient(180deg, #f7f8f2 0%, #eef2eb 100%) !important;
         }
 
         [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
             background:
-                linear-gradient(180deg, #fff9ea 0%, #f7efdd 100%) !important;
+                linear-gradient(180deg, #f7f8f2 0%, #eef2eb 100%) !important;
             box-sizing: border-box;
             padding: 0 !important;
             width: 100%;
@@ -222,83 +220,127 @@ def _page_style() -> None:
         }
 
         h1, h2, h3 {
-            letter-spacing: -0.035em;
+            letter-spacing: -0.025em;
         }
 
         h1 {
-            font-family: var(--bbd-serif) !important;
-            font-size: clamp(3.1rem, 8vw, 6.6rem);
-            line-height: 0.84;
+            font-family: var(--bbd-sans) !important;
+            font-size: clamp(2.6rem, 6vw, 4.65rem);
+            font-weight: 900;
+            line-height: 0.96;
             color: var(--bbd-strong) !important;
             margin: 0;
         }
 
         h2, h3 {
-            font-family: var(--bbd-serif) !important;
+            font-family: var(--bbd-sans) !important;
             color: var(--bbd-strong) !important;
         }
 
         .bbd-hero {
-            background:
-                linear-gradient(135deg, rgba(255, 251, 239, 0.96), rgba(242, 232, 210, 0.72)),
-                radial-gradient(circle at top right, rgba(201, 223, 99, 0.38), transparent 18rem);
-            border: 1px solid rgba(98, 116, 94, 0.24);
-            border-radius: 32px;
-            box-shadow: var(--bbd-shadow);
-            margin-bottom: 1.15rem;
+            background: linear-gradient(180deg, var(--bbd-banner) 0%, var(--bbd-banner-dark) 100%);
+            border: 1px solid rgba(26, 63, 78, 0.36);
+            border-radius: 8px;
+            box-shadow: 0 8px 18px rgba(31, 51, 61, 0.12);
+            margin-bottom: 0.85rem;
             overflow: hidden;
-            padding: clamp(1.35rem, 4vw, 3rem);
+            padding: 0.62rem clamp(1rem, 2.5vw, 1.35rem) 0.68rem;
             position: relative;
         }
 
         .bbd-hero::after {
-            background:
-                linear-gradient(90deg, rgba(7, 17, 11, 0.12), transparent),
-                repeating-linear-gradient(90deg, rgba(7, 17, 11, 0.15) 0 1px, transparent 1px 11px);
-            bottom: 0;
-            content: "";
-            height: 9px;
-            left: 0;
-            position: absolute;
-            right: 0;
-        }
-
-        .bbd-kicker {
-            align-items: center;
-            color: #344833 !important;
-            display: inline-flex;
-            font-size: 0.76rem;
-            font-weight: 900;
-            gap: 0.45rem;
-            letter-spacing: 0.16em;
-            margin-bottom: 0.7rem;
-            text-transform: uppercase;
-        }
-
-        .bbd-kicker::before {
-            background: var(--bbd-highlight);
-            border: 1px solid rgba(7, 17, 11, 0.28);
-            border-radius: 999px;
-            content: "";
-            height: 0.7rem;
-            width: 0.7rem;
+            display: none;
         }
 
         .bbd-hero-copy {
-            color: var(--bbd-muted) !important;
-            font-size: clamp(1rem, 1.5vw, 1.22rem);
-            line-height: 1.55;
-            margin: 0.9rem 0 0;
-            max-width: 760px;
+            color: #e8f1f4 !important;
+            font-size: 0.86rem;
+            font-style: italic;
+            line-height: 1.25;
+            margin: 0.06rem 0 0;
+            max-width: 720px;
+        }
+
+        .bbd-hero p.bbd-hero-copy,
+        .bbd-hero .bbd-hero-copy {
+            color: #e8f1f4 !important;
+            -webkit-text-fill-color: #e8f1f4 !important;
         }
 
         .bbd-hero-meta {
-            color: var(--bbd-faint) !important;
-            font-size: 0.86rem;
+            color: #d7e7ed !important;
+            font-size: 0.75rem;
             font-weight: 800;
-            letter-spacing: 0.08em;
-            margin-top: 1.2rem;
+            letter-spacing: 0.04em;
             text-transform: uppercase;
+        }
+
+        .bbd-breadcrumb {
+            color: #d7e6ec !important;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            margin-bottom: 0.38rem;
+        }
+
+        .bbd-hero-main {
+            align-items: end;
+            display: flex;
+            gap: 1rem;
+            justify-content: space-between;
+        }
+
+        .bbd-hero h1 {
+            color: #ffffff !important;
+            font-size: clamp(1.55rem, 3vw, 2.35rem);
+            font-weight: 820;
+            letter-spacing: -0.035em;
+        }
+
+        .bbd-hero-status {
+            align-items: center;
+            background: rgba(18, 43, 54, 0.34);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 999px;
+            color: #f7fbfb !important;
+            display: inline-flex;
+            font-size: 0.72rem;
+            font-weight: 800;
+            gap: 0.35rem;
+            line-height: 1;
+            padding: 0.36rem 0.58rem;
+            white-space: nowrap;
+        }
+
+        .bbd-product-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.34rem;
+            margin-top: 0.62rem;
+        }
+
+        .bbd-product-tab {
+            border: 1px solid rgba(222, 239, 244, 0.48);
+            border-radius: 999px;
+            color: #e8f2f5 !important;
+            -webkit-text-fill-color: #e8f2f5 !important;
+            display: inline-flex;
+            font-size: 0.74rem;
+            font-weight: 800;
+            line-height: 1;
+            padding: 0.34rem 0.62rem;
+        }
+
+        .bbd-product-tab.is-active {
+            background: var(--bbd-highlight);
+            border-color: var(--bbd-highlight);
+            color: #123126 !important;
+            -webkit-text-fill-color: #123126 !important;
+        }
+
+        .bbd-hero .bbd-product-tab.is-active {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }
 
         [data-testid="stSidebar"] h1,
@@ -318,10 +360,10 @@ def _page_style() -> None:
 
         [data-testid="stSidebar"] div[data-testid="stWidgetLabel"] p {
             color: var(--bbd-strong) !important;
-            font-size: 0.82rem !important;
+            font-size: 0.78rem !important;
             font-weight: 800 !important;
             letter-spacing: 0.01em;
-            margin-bottom: 0.15rem !important;
+            margin-bottom: 0.08rem !important;
         }
 
         [data-testid="stSidebar"] input,
@@ -335,13 +377,13 @@ def _page_style() -> None:
         [data-testid="stSidebar"] div[data-baseweb="input"] input,
         [data-testid="stSidebar"] [data-baseweb="base-input"] input,
         [data-testid="stSidebar"] [data-testid="stNumberInput"] input {
-            min-height: 2.35rem !important;
-            padding-bottom: 0.42rem !important;
-            padding-top: 0.42rem !important;
+            min-height: 2.18rem !important;
+            padding-bottom: 0.34rem !important;
+            padding-top: 0.34rem !important;
         }
 
         [data-testid="stSidebar"] [data-baseweb="select"] > div {
-            min-height: 2.35rem !important;
+            min-height: 2.18rem !important;
             padding-bottom: 0 !important;
             padding-top: 0 !important;
         }
@@ -356,9 +398,9 @@ def _page_style() -> None:
         [data-testid="stSidebar"] div[data-baseweb="base-input"],
         [data-testid="stSidebar"] [data-testid="stNumberInput"] div[data-baseweb="input"] {
             box-sizing: border-box !important;
-            border-radius: 12px !important;
+            border-radius: 8px !important;
             max-width: 100% !important;
-            min-height: 2.45rem !important;
+            min-height: 2.25rem !important;
             transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
             width: 100% !important;
         }
@@ -369,7 +411,7 @@ def _page_style() -> None:
         [data-testid="stSidebar"] [data-testid="stNumberInput"],
         [data-testid="stSidebar"] [data-testid="stSlider"] {
             box-sizing: border-box;
-            margin-bottom: 0.35rem;
+            margin-bottom: 0.26rem;
             max-width: 100%;
             width: 100%;
         }
@@ -465,27 +507,26 @@ def _page_style() -> None:
         }
 
         .stButton > button {
-            background:
-                linear-gradient(135deg, var(--bbd-accent), #15311f) !important;
-            border: 1px solid rgba(7, 17, 11, 0.32) !important;
+            background: var(--bbd-accent) !important;
+            border: 1px solid rgba(0, 67, 64, 0.55) !important;
             border-radius: 999px;
-            color: #fff8e7 !important;
-            box-shadow: 0 12px 24px rgba(29, 64, 45, 0.18);
+            color: #fffdf7 !important;
+            box-shadow: 0 6px 12px rgba(0, 91, 88, 0.14);
             font-weight: 800;
-            padding: 0.66rem 1.25rem;
+            padding: 0.52rem 1rem;
             transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
         }
 
         .stButton > button p,
         .stButton > button span {
-            color: #fff8e7 !important;
+            color: #fffdf7 !important;
         }
 
         .stButton > button:hover {
             background: var(--bbd-accent-hover) !important;
             border-color: var(--bbd-accent-hover) !important;
-            box-shadow: 0 16px 28px rgba(29, 64, 45, 0.22);
-            color: #fff8e7 !important;
+            box-shadow: 0 10px 20px rgba(0, 91, 88, 0.20);
+            color: #fffdf7 !important;
             transform: translateY(-1px);
         }
 
@@ -519,35 +560,35 @@ def _page_style() -> None:
         }
 
         .bbd-sidebar-brand {
-            background:
-                linear-gradient(135deg, #172318, #2e4a2a);
-            border: 1px solid rgba(201, 223, 99, 0.28);
+            background: linear-gradient(180deg, var(--bbd-banner) 0%, var(--bbd-banner-dark) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.16);
             border-left: 0;
-            border-radius: 0 0 22px 22px;
+            border-radius: 0;
             border-right: 0;
             border-top: 0;
-            box-shadow: 0 18px 34px rgba(20, 33, 23, 0.14);
-            margin: 0 0 1rem;
-            padding: 1.15rem 1.2rem 1.25rem;
+            box-shadow: 0 5px 12px rgba(23, 47, 57, 0.08);
+            margin: 0 0 0.62rem;
+            padding: 0.68rem 1.05rem 0.72rem;
             width: 100%;
         }
 
         .bbd-sidebar-brand span {
-            color: #c9df63 !important;
+            color: #dce8ed !important;
             display: block;
-            font-size: 0.7rem;
+            font-size: 0.62rem;
             font-weight: 900;
-            letter-spacing: 0.14em;
-            margin-bottom: 0.3rem;
+            letter-spacing: 0.13em;
+            margin-bottom: 0.22rem;
             text-transform: uppercase;
         }
 
         .bbd-sidebar-brand strong {
-            color: #fff8e7 !important;
+            color: #fffdf7 !important;
             display: block;
-            font-family: var(--bbd-serif);
-            font-size: 1.55rem;
-            letter-spacing: -0.04em;
+            font-family: var(--bbd-sans);
+            font-size: 1.02rem;
+            font-weight: 850;
+            letter-spacing: -0.02em;
             line-height: 1;
         }
 
@@ -566,6 +607,28 @@ def _page_style() -> None:
             color: var(--bbd-strong) !important;
         }
 
+        .bbd-public-note {
+            background: rgba(232, 241, 242, 0.72);
+            border: 1px solid #c5d7d9;
+            border-radius: 10px;
+            color: var(--bbd-muted) !important;
+            font-size: 0.78rem;
+            line-height: 1.34;
+            margin: 0.1rem 0 0.52rem;
+            padding: 0.5rem 0.58rem;
+        }
+
+        .bbd-public-note a {
+            color: var(--bbd-accent-hover) !important;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .bbd-public-note a:hover,
+        .bbd-public-note a:focus-visible {
+            text-decoration: underline;
+        }
+
         .bbd-sidebar-title {
             color: var(--bbd-strong) !important;
             font-family: var(--bbd-serif);
@@ -578,10 +641,10 @@ def _page_style() -> None:
 
         .bbd-sidebar-section {
             color: var(--bbd-muted) !important;
-            font-size: 0.74rem;
+            font-size: 0.68rem;
             font-weight: 900;
             letter-spacing: 0.08em;
-            margin: 0.7rem 0 0.05rem;
+            margin: 0.55rem 0 0.02rem;
             text-transform: uppercase;
         }
 
@@ -607,16 +670,16 @@ def _page_style() -> None:
         .bbd-callout,
         .bbd-stop-card,
         .bbd-route-summary {
-            background: rgba(255, 251, 239, 0.94);
+            background: var(--bbd-panel);
             border: 1px solid var(--bbd-line);
-            border-radius: 24px;
-            box-shadow: var(--bbd-soft-shadow);
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(23, 47, 57, 0.05);
         }
 
         .bbd-callout {
-            border-left: 8px solid var(--bbd-highlight);
-            margin: 1rem 0 1.25rem;
-            padding: 1rem 1.15rem 1rem 1.35rem;
+            border-left: 4px solid var(--bbd-accent);
+            margin: 0.95rem 0 1.15rem;
+            padding: 0.76rem 0.95rem 0.78rem 1rem;
         }
 
         .bbd-callout-title,
@@ -627,9 +690,8 @@ def _page_style() -> None:
         }
 
         .bbd-callout-title {
-            font-family: var(--bbd-serif);
-            font-size: 1.25rem;
-            letter-spacing: -0.025em;
+            font-size: 1.08rem;
+            letter-spacing: -0.01em;
         }
 
         .bbd-callout-body,
@@ -639,23 +701,23 @@ def _page_style() -> None:
         }
 
         .bbd-stop-card {
-            margin-bottom: 0.85rem;
-            padding: 1rem 1.1rem;
+            margin-bottom: 0.78rem;
+            padding: 0.92rem 1rem;
         }
 
         .bbd-stop-number {
             align-items: center;
-            background: #122317;
-            border: 2px solid var(--bbd-highlight);
+            background: var(--bbd-accent);
+            border: 1px solid #b8d0c8;
             border-radius: 999px;
-            color: #fff8e7 !important;
+            color: #fffdf7 !important;
             display: inline-flex;
             font-size: 0.85rem;
             font-weight: 800;
-            height: 2rem;
+            height: 1.75rem;
             justify-content: center;
             margin-right: 0.55rem;
-            width: 2rem;
+            width: 1.75rem;
         }
 
         .bbd-chip-row {
@@ -666,29 +728,33 @@ def _page_style() -> None:
         }
 
         .bbd-chip {
-            background: #edf4df;
-            border: 1px solid #c2d4b1;
-            border-radius: 999px;
+            background: #fbfdfb;
+            border: 1px solid #c8d8cf;
+            border-left: 3px solid var(--bbd-accent);
+            border-radius: 5px;
             color: var(--bbd-strong) !important;
             display: inline-block;
-            font-size: 0.88rem;
-            font-weight: 650;
-            padding: 0.3rem 0.66rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 0.24rem 0.48rem;
         }
 
         .bbd-specialty-chip {
-            background: #fff0c2;
-            border-color: #c68e24;
+            background: #fff5d9;
+            border-color: #d8c796;
+            border-left-color: var(--bbd-gold);
         }
 
         .bbd-rare-chip {
-            background: #fee3c2;
-            border-color: var(--bbd-rust);
+            background: #fff0e8;
+            border-color: #e0c0ad;
+            border-left-color: var(--bbd-rust);
         }
 
         .bbd-common-chip {
-            background: #eef2e3;
-            border-color: #ccd8bd;
+            background: #eef5ef;
+            border-color: #c7d8c9;
+            border-left-color: #789878;
         }
 
         .bbd-empty-chip {
@@ -720,11 +786,11 @@ def _page_style() -> None:
 
         .bbd-section-title {
             color: var(--bbd-strong) !important;
-            font-family: var(--bbd-serif);
-            font-size: clamp(1.65rem, 3vw, 2.35rem);
-            font-weight: 850;
-            letter-spacing: -0.04em;
-            margin: 1.35rem 0 0.35rem;
+            font-family: var(--bbd-sans);
+            font-size: clamp(1.45rem, 2.5vw, 2rem);
+            font-weight: 900;
+            letter-spacing: -0.025em;
+            margin: 1.25rem 0 0.35rem;
         }
 
         .bbd-tooltip {
@@ -759,54 +825,48 @@ def _page_style() -> None:
 
         .bbd-stat-grid {
             display: grid;
-            gap: 0.85rem;
+            gap: 0.75rem;
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            margin: 1rem 0 1.1rem;
+            margin: 0.95rem 0 1.05rem;
         }
 
         .bbd-stat-card {
-            background:
-                linear-gradient(180deg, rgba(255, 251, 239, 0.96), rgba(247, 239, 219, 0.92));
-            border: 1px solid rgba(98, 116, 94, 0.28);
-            border-radius: 24px;
-            box-shadow: var(--bbd-soft-shadow);
-            min-height: 8.2rem;
+            background: var(--bbd-panel);
+            border: 1px solid var(--bbd-line);
+            border-top: 4px solid var(--bbd-accent);
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(23, 47, 57, 0.05);
+            min-height: 6.7rem;
             overflow: hidden;
-            padding: 1rem;
+            padding: 0.85rem 0.95rem;
             position: relative;
         }
 
         .bbd-stat-card::before {
-            background: var(--bbd-highlight);
-            content: "";
-            height: 0.4rem;
-            left: 1rem;
-            position: absolute;
-            right: 1rem;
-            top: 0;
+            display: none;
         }
 
         .bbd-stat-label {
             color: var(--bbd-muted) !important;
-            font-size: 0.76rem;
+            font-size: 0.7rem;
             font-weight: 900;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.11em;
             margin-bottom: 0.58rem;
             text-transform: uppercase;
         }
 
         .bbd-stat-value {
             color: var(--bbd-strong) !important;
-            font-family: var(--bbd-serif);
-            font-size: clamp(2.15rem, 4vw, 3.35rem);
-            font-weight: 850;
-            letter-spacing: -0.06em;
+            font-family: var(--bbd-sans);
+            font-size: clamp(1.85rem, 3vw, 2.75rem);
+            font-weight: 900;
+            letter-spacing: -0.05em;
             line-height: 0.9;
         }
 
         .bbd-stat-caption {
             color: var(--bbd-faint) !important;
-            font-size: 0.86rem;
+            font-size: 0.8rem;
             font-weight: 700;
             margin-top: 0.75rem;
         }
@@ -828,8 +888,8 @@ def _page_style() -> None:
         }
 
         [data-testid="stTabs"] [aria-selected="true"] {
-            background: #122317 !important;
-            color: #fff8e7 !important;
+            background: var(--bbd-accent) !important;
+            color: #fffdf7 !important;
         }
 
         [data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"] {
@@ -848,6 +908,204 @@ def _page_style() -> None:
 
         [data-testid="stMain"] div[data-testid="stVerticalBlockBorderWrapper"]:hover {
             border-color: rgba(29, 64, 45, 0.38) !important;
+        }
+
+        .bbd-data-grid,
+        .bbd-highlight-grid {
+            display: grid;
+            gap: 0.9rem;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin: 0.75rem 0 1.15rem;
+        }
+
+        .bbd-data-card {
+            background: var(--bbd-panel);
+            border: 1px solid var(--bbd-line);
+            border-radius: 10px;
+            box-shadow: var(--bbd-soft-shadow);
+            padding: 1rem;
+        }
+
+        .bbd-card-kicker {
+            color: var(--bbd-muted) !important;
+            font-size: 0.72rem;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+        }
+
+        .bbd-data-card h3 {
+            font-size: 1.2rem;
+            font-weight: 900;
+            margin: 0 0 0.75rem;
+        }
+
+        .bbd-bar-list {
+            display: grid;
+            gap: 0.72rem;
+        }
+
+        .bbd-bar-row {
+            display: grid;
+            gap: 0.25rem;
+        }
+
+        .bbd-bar-meta {
+            align-items: baseline;
+            display: flex;
+            gap: 0.75rem;
+            justify-content: space-between;
+        }
+
+        .bbd-bar-meta span,
+        .bbd-prob-stop {
+            color: var(--bbd-muted) !important;
+            font-size: 0.86rem;
+            line-height: 1.25;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .bbd-bar-meta strong,
+        .bbd-prob-value {
+            color: var(--bbd-strong) !important;
+            font-size: 0.9rem;
+            font-weight: 850;
+            white-space: nowrap;
+        }
+
+        .bbd-bar-track,
+        .bbd-stack-track,
+        .bbd-prob-track {
+            background: #e8eee6;
+            border: 1px solid #d2ddd1;
+            border-radius: 999px;
+            height: 0.7rem;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .bbd-bar-fill,
+        .bbd-prob-fill {
+            background: var(--bbd-accent);
+            border-radius: 999px;
+            display: block;
+            height: 100%;
+        }
+
+        .bbd-stack-track {
+            display: flex;
+        }
+
+        .bbd-stack-drive,
+        .bbd-stack-birding {
+            display: block;
+            height: 100%;
+        }
+
+        .bbd-stack-drive {
+            background: #9bb0a4;
+        }
+
+        .bbd-stack-birding {
+            background: var(--bbd-accent);
+        }
+
+        .bbd-legend-row {
+            color: var(--bbd-muted) !important;
+            display: flex;
+            flex-wrap: wrap;
+            font-size: 0.82rem;
+            font-weight: 750;
+            gap: 0.85rem;
+            margin-top: 0.75rem;
+        }
+
+        .bbd-legend-swatch {
+            border-radius: 999px;
+            display: inline-block;
+            height: 0.62rem;
+            margin-right: 0.32rem;
+            width: 0.62rem;
+        }
+
+        .bbd-highlight-list,
+        .bbd-prob-list {
+            display: grid;
+            gap: 0.55rem;
+        }
+
+        .bbd-highlight-item,
+        .bbd-prob-row {
+            background: #fbfaf4;
+            border: 1px solid #dbe2d7;
+            border-left: 3px solid var(--bbd-accent);
+            border-radius: 8px;
+            padding: 0.62rem 0.72rem;
+        }
+
+        .bbd-highlight-item.is-specialty {
+            border-left-color: var(--bbd-rust);
+        }
+
+        .bbd-highlight-title,
+        .bbd-prob-title {
+            align-items: baseline;
+            display: flex;
+            gap: 0.7rem;
+            justify-content: space-between;
+        }
+
+        .bbd-highlight-title strong,
+        .bbd-prob-title strong {
+            color: var(--bbd-strong) !important;
+            font-size: 0.98rem;
+            line-height: 1.2;
+        }
+
+        .bbd-highlight-detail,
+        .bbd-prob-detail {
+            color: var(--bbd-muted) !important;
+            font-size: 0.84rem;
+            line-height: 1.35;
+            margin-top: 0.2rem;
+        }
+
+        .bbd-prob-list {
+            max-height: 34rem;
+            overflow: auto;
+            padding-right: 0.15rem;
+        }
+
+        .bbd-prob-row {
+            display: grid;
+            gap: 0.35rem;
+        }
+
+        .bbd-prob-row.is-high {
+            border-left-color: var(--bbd-accent);
+        }
+
+        .bbd-prob-row.is-medium {
+            border-left-color: var(--bbd-gold);
+        }
+
+        .bbd-prob-row.is-low {
+            border-left-color: var(--bbd-rust);
+        }
+
+        .bbd-prob-fill.is-high {
+            background: var(--bbd-accent);
+        }
+
+        .bbd-prob-fill.is-medium {
+            background: var(--bbd-gold);
+        }
+
+        .bbd-prob-fill.is-low {
+            background: var(--bbd-rust);
         }
 
         html body header [data-testid="stToolbar"] *,
@@ -874,6 +1132,11 @@ def _page_style() -> None:
 
             .bbd-stat-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .bbd-data-grid,
+            .bbd-highlight-grid {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -906,6 +1169,9 @@ def _parse_observation_date(value: str) -> tuple[Optional[dt.date], Optional[str
 
 
 def _load_default_api_key() -> str:
+    if _is_public_deployment():
+        return ""
+
     env_api_key = os.getenv("EBIRD_API_KEY", "").strip()
     if env_api_key:
         return env_api_key
@@ -952,6 +1218,88 @@ def _load_default_api_key() -> str:
     return ""
 
 
+def _is_public_deployment() -> bool:
+    return os.getenv(PUBLIC_DEPLOYMENT_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _load_preloaded_loudoun_itinerary() -> Itinerary:
+    """Return the bundled Loudoun demo route without calling external services."""
+    demo_resource = resources.files("big_day_optimizer").joinpath(
+        "data/loudoun_demo_itinerary.json"
+    )
+    with resources.as_file(demo_resource) as demo_path:
+        payload = json.loads(demo_path.read_text(encoding="utf-8"))
+
+    stops = payload["stops"]
+    hotspots = pd.DataFrame(
+        [
+            {
+                "locId": str(stop.get("locId", "")),
+                "locName": str(stop["locName"]),
+                "lat": float(stop["lat"]),
+                "lng": float(stop["lng"]),
+            }
+            for stop in stops
+        ]
+    )
+
+    species_codes: list[str] = []
+
+    def add_species(code: str) -> None:
+        if code not in species_codes:
+            species_codes.append(code)
+
+    for code in payload.get("shared_species", {}):
+        add_species(code)
+    for stop in stops:
+        for code in stop.get("species", {}):
+            add_species(code)
+
+    species_index = {code: idx for idx, code in enumerate(species_codes)}
+    gain_matrix = np.zeros((len(stops), len(species_codes)), dtype=float)
+
+    for code, probabilities in payload.get("shared_species", {}).items():
+        species_idx = species_index[code]
+        for stop_idx, probability in enumerate(probabilities[: len(stops)]):
+            gain_matrix[stop_idx, species_idx] = min(max(float(probability), 0.0), 1.0)
+
+    for stop_idx, stop in enumerate(stops):
+        for code, probability in stop.get("species", {}).items():
+            gain_matrix[stop_idx, species_index[code]] = min(max(float(probability), 0.0), 1.0)
+
+    travel = [[0 for _ in stops] for _ in stops]
+    for stop_idx, stop in enumerate(stops):
+        if stop_idx == 0:
+            continue
+        drive = int(stop.get("drive_from_previous_min", 0))
+        travel[stop_idx - 1][stop_idx] = drive
+        travel[stop_idx][stop_idx - 1] = drive
+
+    route_idx = list(range(len(stops)))
+    route_success = 1 - np.prod(1 - gain_matrix[route_idx], axis=0)
+    seen_species = [
+        code
+        for code, probability in zip(species_codes, route_success)
+        if float(probability) > 0
+    ]
+
+    return Itinerary(
+        route_idx=route_idx,
+        visit_mask=[True for _ in stops],
+        seen_species=seen_species,
+        hotspots=hotspots,
+        travel=travel,
+        start_time=dt.datetime.fromisoformat(str(payload["start_time"])),
+        base_idle=int(payload.get("base_idle", 30)),
+        dwell_per=int(payload.get("dwell_per", 2)),
+        include_depot=False,
+        depot_idx=None,
+        sp_all=species_codes,
+        gain_matrix=gain_matrix,
+        expected_species=float(route_success.sum()),
+    )
+
+
 def _read_config() -> DashboardConfig:
     default_api_key = _load_default_api_key()
 
@@ -967,38 +1315,52 @@ def _read_config() -> DashboardConfig:
         )
         st.markdown('<div class="bbd-sidebar-section">Trip setup</div>', unsafe_allow_html=True)
         api_key = st.text_input("eBird API key", value=default_api_key, type="password")
-        region = st.text_input("eBird region", value=DEFAULT_REGION)
+        if _is_public_deployment():
+            st.markdown(
+                f"""
+                <div class="bbd-public-note">
+                    Use your own eBird API key for live runs.
+                    The key is used for this Streamlit session and is not stored by the app.
+                    <a href="{EBIRD_API_HELP_URL}" target="_blank" rel="noopener noreferrer">Get a key</a>.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        region = st.text_input(
+            "eBird area",
+            value=DEFAULT_REGION,
+            help="Region code such as US-VA-107 for Loudoun County.",
+        )
         observation_date_text = st.text_input(
-            "Observation date",
+            "Date",
             value=DEFAULT_OBSERVATION_DATE.isoformat(),
-            help="Use YYYY-MM-DD. Future dates are allowed.",
+            help="YYYY-MM-DD. Future dates use historical years.",
         )
         observation_date, date_error = _parse_observation_date(observation_date_text)
 
         st.divider()
-        st.markdown('<div class="bbd-sidebar-section">Day window</div>', unsafe_allow_html=True)
+        st.markdown('<div class="bbd-sidebar-section">Day</div>', unsafe_allow_html=True)
         start_time = st.time_input("Start time", value=dt.time(5, 30))
         end_time = st.time_input("End time", value=dt.time(20, 30))
 
         st.divider()
-        st.markdown('<div class="bbd-sidebar-section">Checklist data</div>', unsafe_allow_html=True)
+        st.markdown('<div class="bbd-sidebar-section">Sampling</div>', unsafe_allow_html=True)
         include_recent = st.checkbox(
-            "Use recent checklists from this year",
+            "Recent checklists",
             value=False,
-            help="Samples current-year checklists in the date window. Future checklist dates are skipped.",
+            help="Use current-year checklists when they exist.",
         )
         historical_years = st.selectbox(
-            "Number of historical years",
+            "Historical years",
             options=[0, 1, 2, 3, 4, 5],
             index=2,
-            help="Adds matching calendar-date windows from prior years.",
+            help="Same calendar window from prior years.",
         )
-        with st.expander("How sampling works", expanded=False):
+        with st.expander("Sampling notes", expanded=False):
             st.markdown(
                 """
                 <div class="bbd-help">
-                  <strong>Recent checklists</strong> use this year’s reports in the selected date window, skipping future dates that do not exist yet.<br>
-                  <strong>Historical years</strong> add matching calendar windows from prior years. For future dates, use at least one historical year.
+                  This year skips future dates. Historical years use the same calendar window.
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1030,36 +1392,36 @@ def _read_config() -> DashboardConfig:
             min_stops = col_a.number_input("Min stops", min_value=1, max_value=50, value=3)
             max_stops = col_b.number_input("Max stops", min_value=1, max_value=50, value=8)
             min_prob = st.slider(
-                "Optimization probability floor",
+                "Solver floor",
                 0.0,
                 0.5,
                 0.03,
                 0.01,
-                help="Species-hotspot probabilities below this value are ignored by the solver. Lower values let several small chances combine into a meaningful route-level chance, but increase solve time.",
+                help="Ignore species-hotspot probabilities below this value.",
             )
             display_min_prob = st.slider(
-                "Displayed bird probability floor",
+                "Display floor",
                 0.0,
                 0.5,
                 0.15,
                 0.01,
-                help="Keeps low-probability solver inputs from cluttering the stop cards and trip probability table.",
+                help="Hide lower-probability birds from the UI.",
             )
-            st.markdown('<div class="bbd-sidebar-section">Nearby hotspot penalty</div>', unsafe_allow_html=True)
+            st.markdown('<div class="bbd-sidebar-section">Nearby penalty</div>', unsafe_allow_html=True)
             nearby_drive_min = st.number_input(
-                "Nearby if drive time is at most",
+                "Nearby drive minutes",
                 min_value=0,
                 max_value=30,
                 value=8,
-                help="Pairs of selected hotspots within this drive time receive a soft duplicate-location penalty. Set to 0 to disable.",
+                help="Set to 0 to disable.",
             )
             nearby_pair_penalty = st.slider(
-                "Expected-species penalty per nearby pair",
+                "Penalty per pair",
                 0.0,
                 1.0,
                 0.15,
                 0.05,
-                help="How much a second nearby hotspot must overcome with extra expected birds. It does not change the route time budget.",
+                help="Expected-species penalty for a second nearby stop.",
             )
             base_idle = st.number_input("Base dwell minutes", min_value=0, max_value=240, value=30)
             dwell_per = st.number_input("Minutes per expected new species", min_value=0, max_value=30, value=2)
@@ -1328,6 +1690,20 @@ def _display_percent(value: float) -> str:
     return f"{value:.0%}"
 
 
+def _bar_width(value: float, maximum: float) -> float:
+    if maximum <= 0:
+        return 0.0
+    return max(0.0, min(100.0, (value / maximum) * 100.0))
+
+
+def _probability_band(probability: float) -> str:
+    if probability >= 0.70:
+        return "high"
+    if probability >= 0.40:
+        return "medium"
+    return "low"
+
+
 def _stop_specialties(specialties: pd.DataFrame, *, per_stop: int = 8) -> dict[int, list[tuple[str, str, float]]]:
     if specialties.empty:
         return {}
@@ -1537,10 +1913,8 @@ def _render_route_brief(summary_df: pd.DataFrame, total_drive: float, total_dwel
         <div class="bbd-callout">
             <div class="bbd-callout-title">Route at a glance</div>
             <div class="bbd-callout-body">
-                Start at <strong>{first_site}</strong> and finish at <strong>{last_site}</strong> around <strong>{last_row["Depart"]}</strong>.
-                The plan estimates <strong>{expected_species:.1f}</strong> species, with <strong>{_format_minutes(total_dwell)}</strong> birding and
-                <strong>{_format_minutes(total_drive)}</strong> driving. The biggest expected gain is <strong>{best_row["Expected new"]:.1f}</strong>
-                species at <strong>{best_site}</strong>.
+                Start <strong>{first_site}</strong> · finish <strong>{last_site}</strong> at <strong>{last_row["Depart"]}</strong> ·
+                <strong>{expected_species:.1f}</strong> expected species · top gain <strong>{best_row["Expected new"]:.1f}</strong> at <strong>{best_site}</strong>.
             </div>
         </div>
         """,
@@ -1557,10 +1931,10 @@ def _render_metric_cards(
     finish_time: str,
 ) -> None:
     cards = [
-        ("Expected species", f"{itinerary.expected_species:.1f}", "probability-weighted"),
+        ("Expected species", f"{itinerary.expected_species:.1f}", "route estimate"),
         ("Stops", str(stop_count), "planned hotspots"),
         ("Drive", _format_minutes(total_drive), "between stops"),
-        ("Birding", _format_minutes(total_dwell), f"finish {finish_time}"),
+        ("Birding", _format_minutes(total_dwell), f"ends {finish_time}"),
     ]
     card_html = "".join(
         '<div class="bbd-stat-card">'
@@ -1578,58 +1952,143 @@ def _render_route_charts(summary_df: pd.DataFrame) -> None:
         return
 
     chart_df = summary_df.copy()
-    chart_df["Stop label"] = chart_df["Stop"].astype(str) + ". " + chart_df["Site"].str.slice(0, 26)
+    max_expected = float(chart_df["Expected new"].max()) if "Expected new" in chart_df else 0.0
+    max_time = float((chart_df["Drive min"] + chart_df["Birding min"]).max()) if not chart_df.empty else 0.0
 
-    left, right = st.columns(2)
-    with left:
-        st.subheader("Expected species by stop")
-        st.bar_chart(
-            chart_df.set_index("Stop label")[["Expected new"]],
-            use_container_width=True,
+    expected_rows = []
+    time_rows = []
+    for _, row in chart_df.iterrows():
+        stop_label = f"{int(row['Stop'])}. {row['Site']}"
+        expected = float(row["Expected new"])
+        drive = float(row["Drive min"])
+        birding = float(row["Birding min"])
+        total = max(drive + birding, 0.0)
+        expected_rows.append(
+            f"""
+            <div class="bbd-bar-row">
+                <div class="bbd-bar-meta">
+                    <span>{html.escape(stop_label)}</span>
+                    <strong>{expected:.1f}</strong>
+                </div>
+                <div class="bbd-bar-track">
+                    <span class="bbd-bar-fill" style="width:{_bar_width(expected, max_expected):.1f}%"></span>
+                </div>
+            </div>
+            """
         )
-    with right:
-        st.subheader("Time by stop")
-        st.bar_chart(
-            chart_df.set_index("Stop label")[["Drive min", "Birding min"]],
-            use_container_width=True,
+        time_rows.append(
+            f"""
+            <div class="bbd-bar-row">
+                <div class="bbd-bar-meta">
+                    <span>{html.escape(stop_label)}</span>
+                    <strong>{_format_minutes(total)}</strong>
+                </div>
+                <div class="bbd-stack-track">
+                    <span class="bbd-stack-drive" style="width:{_bar_width(drive, max_time):.1f}%"></span>
+                    <span class="bbd-stack-birding" style="width:{_bar_width(birding, max_time):.1f}%"></span>
+                </div>
+            </div>
+            """
         )
+
+    st.markdown(
+        f"""
+        <div class="bbd-data-grid">
+            <section class="bbd-data-card">
+                <div class="bbd-card-kicker">Yield by stop</div>
+                <h3>Expected species gain</h3>
+                <div class="bbd-bar-list">{''.join(expected_rows)}</div>
+            </section>
+            <section class="bbd-data-card">
+                <div class="bbd-card-kicker">Time allocation</div>
+                <h3>Drive and birding time</h3>
+                <div class="bbd-bar-list">{''.join(time_rows)}</div>
+                <div class="bbd-legend-row">
+                    <span><i class="bbd-legend-swatch" style="background:#9bb0a4"></i>Drive</span>
+                    <span><i class="bbd-legend-swatch" style="background:var(--bbd-accent)"></i>Birding</span>
+                </div>
+            </section>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_bird_highlights(specialties: pd.DataFrame, shared: pd.DataFrame) -> None:
     st.subheader("Bird highlights")
     st.markdown(
-        '<div class="bbd-section-note">Specialties are species where one planned stop is clearly better than the other route stops. Shared birds have useful odds at multiple stops.</div>',
+        '<div class="bbd-section-note">Stop-specific birds on the left; repeated chances on the right.</div>',
         unsafe_allow_html=True,
     )
 
-    left, right = st.columns(2)
-    with left:
-        st.markdown("**Hotspot specialties**")
-        if specialties.empty:
-            st.info("No clear hotspot specialties above the current probability threshold.")
-        else:
-            display = specialties.copy()
-            display["Best chance"] = display["Best chance"].map(_display_percent)
-            display["Next best"] = display["Next best"].map(_display_percent)
-            display["Edge"] = display["Edge"].map(_display_percent)
-            st.dataframe(
-                display[["Stop", "Hotspot", "Bird", "Best chance", "Next best", "Edge"]],
-                use_container_width=True,
-                hide_index=True,
+    specialty_items = []
+    if specialties.empty:
+        specialty_items.append(
+            '<div class="bbd-highlight-item is-specialty"><div class="bbd-highlight-detail">No clear hotspot specialties above the current probability threshold.</div></div>'
+        )
+    else:
+        for _, row in specialties.head(12).iterrows():
+            chance = float(row["Best chance"])
+            edge = float(row["Edge"])
+            specialty_items.append(
+                f"""
+                <div class="bbd-highlight-item is-specialty">
+                    <div class="bbd-highlight-title">
+                        <strong>{html.escape(str(row["Bird"]))}</strong>
+                        <span class="bbd-prob-value">{chance:.0%}</span>
+                    </div>
+                    <div class="bbd-prob-track">
+                        <span class="bbd-prob-fill is-{_probability_band(chance)}" style="width:{chance * 100:.1f}%"></span>
+                    </div>
+                    <div class="bbd-highlight-detail">
+                        Stop {int(row["Stop"])} · {html.escape(str(row["Hotspot"]))} · {edge:.0%} better than the next route stop
+                    </div>
+                </div>
+                """
             )
 
-    with right:
-        st.markdown("**Likely at multiple stops**")
-        if shared.empty:
-            st.info("No species currently meet the repeated-likelihood threshold.")
-        else:
-            display = shared.copy()
-            display["Route chance"] = display["Route chance"].map(_display_percent)
-            st.dataframe(
-                display[["Bird", "Likely stops", "Route chance", "Where"]],
-                use_container_width=True,
-                hide_index=True,
+    shared_items = []
+    if shared.empty:
+        shared_items.append(
+            '<div class="bbd-highlight-item"><div class="bbd-highlight-detail">No species currently meet the repeated-likelihood threshold.</div></div>'
+        )
+    else:
+        for _, row in shared.head(12).iterrows():
+            route_chance = float(row["Route chance"])
+            shared_items.append(
+                f"""
+                <div class="bbd-highlight-item">
+                    <div class="bbd-highlight-title">
+                        <strong>{html.escape(str(row["Bird"]))}</strong>
+                        <span class="bbd-prob-value">{route_chance:.0%}</span>
+                    </div>
+                    <div class="bbd-prob-track">
+                        <span class="bbd-prob-fill is-{_probability_band(route_chance)}" style="width:{route_chance * 100:.1f}%"></span>
+                    </div>
+                    <div class="bbd-highlight-detail">
+                        {int(row["Likely stops"])} likely stops · {html.escape(str(row["Where"]))}
+                    </div>
+                </div>
+                """
             )
+
+    st.markdown(
+        f"""
+        <div class="bbd-highlight-grid">
+            <section class="bbd-data-card">
+                <div class="bbd-card-kicker">Hotspot signal</div>
+                <h3>Specialties</h3>
+                <div class="bbd-highlight-list">{''.join(specialty_items)}</div>
+            </section>
+            <section class="bbd-data-card">
+                <div class="bbd-card-kicker">Route redundancy</div>
+                <h3>Likely at multiple stops</h3>
+                <div class="bbd-highlight-list">{''.join(shared_items)}</div>
+            </section>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_trip_probabilities(itinerary, *, display_min_prob: float) -> None:
@@ -1648,7 +2107,7 @@ def _render_trip_probabilities(itinerary, *, display_min_prob: float) -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="bbd-section-note">This table keeps species whose full-route chance or best single-stop chance clears the displayed probability floor.</div>',
+        '<div class="bbd-section-note">Species at or above the display probability floor.</div>',
         unsafe_allow_html=True,
     )
     if route_probabilities.empty:
@@ -1656,22 +2115,58 @@ def _render_trip_probabilities(itinerary, *, display_min_prob: float) -> None:
         return
 
     display = route_probabilities.copy()
-    display["Route chance"] = display["Route chance"].map(_display_percent)
-    display["Best stop chance"] = display["Best stop chance"].map(_display_percent)
-    st.dataframe(
-        display[
-            [
-                "Bird",
-                "Route chance",
-                "Best stop",
-                "Best stop chance",
-                "Contributing stops",
-                "Top contributing stops",
-            ]
-        ],
-        use_container_width=True,
-        hide_index=True,
+    rows = []
+    for _, row in display.iterrows():
+        route_chance = float(row["Route chance"])
+        best_stop_chance = float(row["Best stop chance"])
+        band = _probability_band(route_chance)
+        rows.append(
+            f"""
+            <div class="bbd-prob-row is-{band}">
+                <div class="bbd-prob-title">
+                    <strong>{html.escape(str(row["Bird"]))}</strong>
+                    <span class="bbd-prob-value">{route_chance:.0%}</span>
+                </div>
+                <div class="bbd-prob-track">
+                    <span class="bbd-prob-fill is-{band}" style="width:{route_chance * 100:.1f}%"></span>
+                </div>
+                <div class="bbd-prob-detail">
+                    Best stop: {html.escape(str(row["Best stop"]))} ({best_stop_chance:.0%}) ·
+                    {int(row["Contributing stops"])} contributing stops
+                </div>
+            </div>
+            """
+        )
+
+    st.markdown(
+        f"""
+        <section class="bbd-data-card">
+            <div class="bbd-card-kicker">Full route list</div>
+            <h3>Species probability catalog</h3>
+            <div class="bbd-prob-list">{''.join(rows)}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
     )
+
+    with st.expander("Show table with contributing stops", expanded=False):
+        table = display.copy()
+        table["Route chance"] = table["Route chance"].map(_display_percent)
+        table["Best stop chance"] = table["Best stop chance"].map(_display_percent)
+        st.dataframe(
+            table[
+                [
+                    "Bird",
+                    "Route chance",
+                    "Best stop",
+                    "Best stop chance",
+                    "Contributing stops",
+                    "Top contributing stops",
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
 
 
 def _render_stop_cards(
@@ -1682,7 +2177,7 @@ def _render_stop_cards(
 ) -> None:
     st.subheader("Stop plan")
     st.markdown(
-        '<div class="bbd-section-note">Read this top to bottom for the route order, timing, eBird links, and expected birds at each location.</div>',
+        '<div class="bbd-section-note">Order, timing, eBird links, and expected birds.</div>',
         unsafe_allow_html=True,
     )
     common_codes = _common_species_codes(itinerary, min_probability=display_min_prob)
@@ -1770,9 +2265,9 @@ def _render_results(itinerary, *, display_min_prob: float = 0.15) -> None:
     )
     _render_route_brief(summary_df, total_drive, total_dwell, itinerary.expected_species)
     _render_stop_cards(itinerary, specialties_by_stop, display_min_prob=display_min_prob)
+    _render_route_charts(summary_df)
     _render_bird_highlights(specialties, shared)
     _render_trip_probabilities(itinerary, display_min_prob=display_min_prob)
-    _render_route_charts(summary_df)
 
     overview_tab, table_tab, map_tab = st.tabs(["Overview", "Table", "Map"])
 
@@ -1838,33 +2333,27 @@ def main() -> None:
     st.markdown(
         """
         <section class="bbd-hero">
-            <div class="bbd-kicker">Probability-aware eBird routing</div>
-            <h1>Big Day Optimizer</h1>
-            <p class="bbd-hero-copy">
-                Build a one-day route from checklist detection rates, drive time, dwell constraints,
-                and repeated chances for hard-to-get birds.
-            </p>
-            <div class="bbd-hero-meta">Default: Loudoun County · May 2, 2026 · 2 historical years</div>
+            <div class="bbd-breadcrumb">Big Day Planner &gt; Loudoun County</div>
+            <div class="bbd-hero-main">
+                <div>
+                    <h1>Big Day Optimizer</h1>
+                    <p class="bbd-hero-copy">One-day route planning from eBird checklist probabilities.</p>
+                </div>
+                <div class="bbd-hero-status">Demo route loaded</div>
+            </div>
         </section>
         """,
         unsafe_allow_html=True,
     )
 
     config = _read_config()
-    errors = _validate(config)
+    if "last_itinerary" not in st.session_state:
+        st.session_state["last_itinerary"] = _load_preloaded_loudoun_itinerary()
+        st.session_state["last_itinerary_source"] = "preloaded"
 
-    itinerary = st.session_state.get("last_itinerary")
     run = st.button("Run optimizer", type="primary")
-    auto_run = (
-        itinerary is None
-        and not st.session_state.get("default_run_attempted")
-        and not errors
-    )
-    if auto_run:
-        st.session_state["default_run_attempted"] = True
-
-    run = run or auto_run
     if run:
+        errors = _validate(config)
         if errors:
             for error in errors:
                 st.error(error)
@@ -1878,11 +2367,22 @@ def main() -> None:
                 return
 
         st.session_state["last_itinerary"] = itinerary
+        st.session_state["last_itinerary_source"] = "live"
 
     itinerary = st.session_state.get("last_itinerary")
     if itinerary is None:
         st.info("Set the run options, then start the optimizer.")
         return
+
+    if st.session_state.get("last_itinerary_source") == "preloaded":
+        st.markdown(
+            """
+            <div class="bbd-table-note">
+                Demo route · run optimizer for live eBird data.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     _render_results(itinerary, display_min_prob=config.display_min_prob)
 
