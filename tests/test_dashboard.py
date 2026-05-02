@@ -186,6 +186,7 @@ class DashboardTest(unittest.TestCase):
             historical_years=0,
             back=7,
             max_checklists_per_day=50,
+            min_checklists_per_hotspot=5,
             max_hotspots=40,
             min_stops=3,
             max_stops=8,

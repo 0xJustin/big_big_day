@@ -63,6 +63,7 @@ class BigDayOptimizer:
     historical_years: int = 0
     include_recent: bool = True
     max_checklists_per_day: int = 50
+    min_checklists_per_hotspot: int = 5
     max_hotspots: Optional[int] = None
 
     # time window
@@ -129,6 +130,7 @@ class BigDayOptimizer:
             historical_years=self.historical_years,
             include_recent=self.include_recent,
             max_checklists_per_day=self.max_checklists_per_day,
+            min_checklists_per_hotspot=self.min_checklists_per_hotspot,
         )
 
         self.hotspots["n_species"] = [

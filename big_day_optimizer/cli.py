@@ -63,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Deprecated alias for --no-recent-checklists; requires historical sampling")
     p.add_argument("--max-checklists-per-day", type=int, default=50,
                    help="Maximum eBird checklists to fetch per hotspot per sampled date")
+    p.add_argument("--min-checklists-per-hotspot", type=int, default=5,
+                   help="Exclude candidate hotspots with fewer sampled checklists")
     p.add_argument("--max-hotspots", type=int, default=None,
                    help="Maximum candidate hotspots to evaluate before solving")
     p.add_argument("--min-prob", type=float, default=0.03,
@@ -96,6 +98,7 @@ def main(argv=None):
         historical_years = historical_years,
         include_recent = include_recent,
         max_checklists_per_day = args.max_checklists_per_day,
+        min_checklists_per_hotspot = args.min_checklists_per_hotspot,
         max_hotspots = args.max_hotspots,
         min_prob = args.min_prob,
         nearby_drive_min = args.nearby_drive_min,

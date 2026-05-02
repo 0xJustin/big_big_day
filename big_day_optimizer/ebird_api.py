@@ -165,15 +165,19 @@ def _prob_vector_for_loc(
     *,
     dates: Sequence[date],
     max_checklists_per_day: int = 50,
+    min_checklists_per_hotspot: int = 1,
 ):
     """Return {speciesCode: P(species appears on a sampled checklist)}."""
+    if min_checklists_per_hotspot <= 0:
+        raise ValueError("min_checklists_per_hotspot must be positive")
+
     sub_ids = _checklists_for_dates(
         api_key,
         loc_id,
         dates,
         max_checklists_per_day=max_checklists_per_day,
     )
-    if not sub_ids:
+    if len(sub_ids) < min_checklists_per_hotspot:
         return {}
 
     hits = collections.Counter()
@@ -196,6 +200,7 @@ def species_prob_by_loc(
     historical_years: int = 0,
     include_recent: bool = True,
     max_checklists_per_day: int = 50,
+    min_checklists_per_hotspot: int = 1,
 ):
     """Return {locId: {speciesCode: detection probability}} for every hotspot.
 
@@ -217,6 +222,7 @@ def species_prob_by_loc(
             row.locId,
             dates=dates,
             max_checklists_per_day=max_checklists_per_day,
+            min_checklists_per_hotspot=min_checklists_per_hotspot,
         )
         for row in hotspots.itertuples()
     }

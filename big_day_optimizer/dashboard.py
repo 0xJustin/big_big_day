@@ -38,6 +38,7 @@ class DashboardConfig:
     historical_years: int
     back: int
     max_checklists_per_day: int
+    min_checklists_per_hotspot: int
     max_hotspots: int
     min_stops: int
     max_stops: int
@@ -1379,6 +1380,14 @@ def _read_config() -> DashboardConfig:
                 value=50,
                 step=5,
             )
+            min_checklists_per_hotspot = st.number_input(
+                "Min checklists per hotspot",
+                min_value=1,
+                max_value=100,
+                value=5,
+                step=1,
+                help="Exclude hotspots with fewer sampled checklists before solving.",
+            )
             max_hotspots = st.number_input(
                 "Candidate hotspots",
                 min_value=1,
@@ -1439,6 +1448,7 @@ def _read_config() -> DashboardConfig:
         historical_years=int(historical_years),
         back=int(back),
         max_checklists_per_day=int(max_checklists_per_day),
+        min_checklists_per_hotspot=int(min_checklists_per_hotspot),
         max_hotspots=int(max_hotspots),
         min_stops=int(min_stops),
         max_stops=int(max_stops),
@@ -1468,6 +1478,8 @@ def _validate(config: DashboardConfig) -> list[str]:
         errors.append("Number of historical years cannot be negative.")
     if not config.include_recent and config.historical_years <= 0:
         errors.append("Select recent checklists or at least one historical year.")
+    if config.min_checklists_per_hotspot <= 0:
+        errors.append("Minimum checklists per hotspot must be positive.")
     if (
         config.observation_date is not None
         and config.observation_date > dt.date.today()
@@ -1496,6 +1508,7 @@ def _run_optimizer(config: DashboardConfig):
         historical_years=config.historical_years,
         back=config.back,
         max_checklists_per_day=config.max_checklists_per_day,
+        min_checklists_per_hotspot=config.min_checklists_per_hotspot,
         max_hotspots=config.max_hotspots,
         min_stops=config.min_stops,
         max_stops=config.max_stops,
@@ -1694,6 +1707,11 @@ def _bar_width(value: float, maximum: float) -> float:
     if maximum <= 0:
         return 0.0
     return max(0.0, min(100.0, (value / maximum) * 100.0))
+
+
+def _compact_html(fragment: str) -> str:
+    """Remove indentation that Streamlit Markdown can mistake for code blocks."""
+    return " ".join(line.strip() for line in fragment.splitlines() if line.strip())
 
 
 def _probability_band(probability: float) -> str:
@@ -1963,7 +1981,7 @@ def _render_route_charts(summary_df: pd.DataFrame) -> None:
         drive = float(row["Drive min"])
         birding = float(row["Birding min"])
         total = max(drive + birding, 0.0)
-        expected_rows.append(
+        expected_rows.append(_compact_html(
             f"""
             <div class="bbd-bar-row">
                 <div class="bbd-bar-meta">
@@ -1975,8 +1993,8 @@ def _render_route_charts(summary_df: pd.DataFrame) -> None:
                 </div>
             </div>
             """
-        )
-        time_rows.append(
+        ))
+        time_rows.append(_compact_html(
             f"""
             <div class="bbd-bar-row">
                 <div class="bbd-bar-meta">
@@ -1989,7 +2007,7 @@ def _render_route_charts(summary_df: pd.DataFrame) -> None:
                 </div>
             </div>
             """
-        )
+        ))
 
     st.markdown(
         f"""
@@ -2030,7 +2048,7 @@ def _render_bird_highlights(specialties: pd.DataFrame, shared: pd.DataFrame) -> 
         for _, row in specialties.head(12).iterrows():
             chance = float(row["Best chance"])
             edge = float(row["Edge"])
-            specialty_items.append(
+            specialty_items.append(_compact_html(
                 f"""
                 <div class="bbd-highlight-item is-specialty">
                     <div class="bbd-highlight-title">
@@ -2045,7 +2063,7 @@ def _render_bird_highlights(specialties: pd.DataFrame, shared: pd.DataFrame) -> 
                     </div>
                 </div>
                 """
-            )
+            ))
 
     shared_items = []
     if shared.empty:
@@ -2055,7 +2073,7 @@ def _render_bird_highlights(specialties: pd.DataFrame, shared: pd.DataFrame) -> 
     else:
         for _, row in shared.head(12).iterrows():
             route_chance = float(row["Route chance"])
-            shared_items.append(
+            shared_items.append(_compact_html(
                 f"""
                 <div class="bbd-highlight-item">
                     <div class="bbd-highlight-title">
@@ -2070,7 +2088,7 @@ def _render_bird_highlights(specialties: pd.DataFrame, shared: pd.DataFrame) -> 
                     </div>
                 </div>
                 """
-            )
+            ))
 
     st.markdown(
         f"""
@@ -2120,7 +2138,7 @@ def _render_trip_probabilities(itinerary, *, display_min_prob: float) -> None:
         route_chance = float(row["Route chance"])
         best_stop_chance = float(row["Best stop chance"])
         band = _probability_band(route_chance)
-        rows.append(
+        rows.append(_compact_html(
             f"""
             <div class="bbd-prob-row is-{band}">
                 <div class="bbd-prob-title">
@@ -2136,7 +2154,7 @@ def _render_trip_probabilities(itinerary, *, display_min_prob: float) -> None:
                 </div>
             </div>
             """
-        )
+        ))
 
     st.markdown(
         f"""

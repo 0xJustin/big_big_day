@@ -122,11 +122,34 @@ class EbirdApiTest(unittest.TestCase):
         self.assertEqual(probabilities["amecro"], 0.5)
         self.assertEqual(probabilities["mallar3"], 1.0)
 
+    def test_probabilities_require_minimum_checklists(self):
+        def fake_get_visits(token, area, date=None, max_results=10):
+            return [{"subId": "S1"}, {"subId": "S2"}]
+
+        with patch.object(ebird_api, "get_visits", side_effect=fake_get_visits):
+            probabilities = ebird_api._prob_vector_for_loc(
+                "token",
+                "loc-1",
+                dates=[dt.date(2026, 4, 26)],
+                max_checklists_per_day=50,
+                min_checklists_per_hotspot=5,
+            )
+
+        self.assertEqual(probabilities, {})
+
     def test_species_prob_by_loc_uses_same_dates_last_year(self):
         requested_dates = []
 
-        def fake_prob_vector(api_key, loc_id, *, dates, max_checklists_per_day):
+        def fake_prob_vector(
+            api_key,
+            loc_id,
+            *,
+            dates,
+            max_checklists_per_day,
+            min_checklists_per_hotspot,
+        ):
             requested_dates.extend(dates)
+            self.assertEqual(min_checklists_per_hotspot, 5)
             return {loc_id: 1.0}
 
         hotspots = pd.DataFrame({"locId": ["loc-1"]})
@@ -138,6 +161,7 @@ class EbirdApiTest(unittest.TestCase):
                 as_of="2026-04-26",
                 historical_years=1,
                 include_recent=False,
+                min_checklists_per_hotspot=5,
             )
 
         self.assertEqual(result, {"loc-1": {"loc-1": 1.0}})
