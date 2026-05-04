@@ -2284,7 +2284,6 @@ def _render_results(itinerary, *, display_min_prob: float = 0.15) -> None:
     _render_route_brief(summary_df, total_drive, total_dwell, itinerary.expected_species)
     _render_stop_cards(itinerary, specialties_by_stop, display_min_prob=display_min_prob)
     _render_route_charts(summary_df)
-    _render_bird_highlights(specialties, shared)
     _render_trip_probabilities(itinerary, display_min_prob=display_min_prob)
 
     overview_tab, table_tab, map_tab = st.tabs(["Overview", "Table", "Map"])
