@@ -1,27 +1,15 @@
 # Big Day Optimizer
 
-Plan a one-day eBird route that tries to maximize the number of species seen in a selected region. The app combines eBird checklist frequencies, hotspot locations, estimated drive time, dwell-time limits, and species-level probability stacking across stops.
+Plan a one-day eBird route for a region and date. The optimizer uses eBird checklist frequencies, hotspot locations, estimated drive time, stop limits, and species-level probabilities across the full route.
 
-## Use The Dashboard
+## What You Need
 
-The dashboard is the intended interface for most users.
+- Python 3.10+
+- An eBird API key: https://support.ebird.org/en/support/solutions/articles/48000838205-download-ebird-data
 
-```bash
-git clone https://github.com/0xJustin/big_big_day.git
-cd big_big_day
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-streamlit run dashboard.py
-```
+## Run The Dashboard
 
-On Windows, activate the environment with:
-
-```powershell
-.venv\Scripts\activate
-```
-
-If you use `uv`:
+Using `uv`:
 
 ```bash
 git clone https://github.com/0xJustin/big_big_day.git
@@ -32,57 +20,47 @@ uv pip install -e .
 streamlit run dashboard.py
 ```
 
-The dashboard opens in a browser. Enter an eBird API key, choose a region and date, then run the optimizer. The default example is Loudoun County, Virginia (`US-VA-107`) for May 2, 2026.
-
-## eBird API Key
-
-The app can read the key in three ways:
-
-- Paste it into the dashboard field.
-- Set `EBIRD_API_KEY` in your shell environment.
-- Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and replace the placeholder.
-
-Do not commit a real token. `ebird_token.json` and `.streamlit/secrets.toml` are ignored by git.
-
-## Deploy For Non-Technical Users
-
-The easiest public deployment for this repo is Cloud Run or Streamlit Community Cloud.
-
-For a public deployment, do not preconfigure a shared eBird token. Set `BBD_PUBLIC_DEPLOYMENT=1` so the dashboard never reads local token files or `EBIRD_API_KEY`; users paste their own eBird API key into the password field for each session.
-
-### Cloud Run
+Using `pip`:
 
 ```bash
-gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
-scripts/deploy_cloud_run.sh
+git clone https://github.com/0xJustin/big_big_day.git
+cd big_big_day
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+streamlit run dashboard.py
 ```
 
-The deploy script uses the included `Dockerfile`, exposes Streamlit on Cloud Run's `PORT`, sets `BBD_PUBLIC_DEPLOYMENT=1`, and disables the Cloud Run Invoker IAM check so it can be public even under domain-restricted sharing organization policies.
+On Windows:
 
-### Streamlit Community Cloud
-
-1. Push this repository to GitHub.
-2. Create a Streamlit app from `0xJustin/big_big_day`.
-3. Set the app file to `dashboard.py`.
-4. Set `BBD_PUBLIC_DEPLOYMENT = "1"` in Streamlit secrets or environment.
-5. Share the Streamlit URL directly, or embed it on a website.
-
-The website in `~/Projects/website` is a static Astro site, so it cannot run this Python optimizer by itself. Use a hosted Streamlit app and add either a normal link or an iframe:
-
-```html
-<iframe
-  src="https://your-streamlit-app-url"
-  style="width: 100%; height: 900px; border: 0;"
-  title="Big Day Optimizer"
-></iframe>
+```powershell
+.venv\Scripts\activate
 ```
 
-More detail is in `docs/deploy.md`.
+Paste your eBird API key into the dashboard, choose a region and date, then run the optimizer.
+
+## API Key Options
+
+The app can read an eBird API key from:
+
+- The dashboard password field.
+- `EBIRD_API_KEY` in your shell environment.
+- `.streamlit/secrets.toml`, copied from `.streamlit/secrets.toml.example`.
+
+Do not commit a real token. Local token files are ignored by git.
+
+## Defaults
+
+The dashboard loads a demo route for Loudoun County, Virginia:
+
+- Region: `US-VA-107`
+- Date: `2026-05-02`
+- Historical years: `2`
+- Minimum sampled checklists per hotspot: `5`
+
+Click `Run optimizer` to fetch live eBird data and solve a fresh route.
 
 ## Command Line
-
-After installation, the CLI entrypoint is available as:
 
 ```bash
 big-day-optimizer \
@@ -90,32 +68,49 @@ big-day-optimizer \
   --region US-VA-107 \
   --observation-date 2026-05-02 \
   --historical-years 2 \
+  --min-checklists-per-hotspot 5 \
   --max-hotspots 40
 ```
 
-It writes a CSV itinerary, defaulting to `itinerary.csv`.
+The CLI writes `itinerary.csv` unless another output path is provided.
 
-## How The Optimizer Scores Routes
+## How Scoring Works
 
-For each hotspot, the app estimates species detection probabilities from matching checklist windows. The route solver uses marginal expected gain, so a species already likely at earlier stops is still valuable at another stop if that second stop materially increases the full-trip probability.
-
-The full-trip species probability is calculated as:
+The optimizer scores expected species across the full trip, not raw checklist length. For each species, repeated chances across stops are combined as:
 
 ```text
 1 - product(1 - hotspot_probability)
 ```
 
-across the selected stops. This means repeated 20% chances can add up, while repeated near-certain birds add little after the first reliable stop.
+This lets multiple modest chances for a species improve the route, while repeated near-certain species add little after the first reliable stop.
 
-## Developer Commands
+## Public Deployment
+
+For public deployments, users should enter their own eBird API key. Set:
+
+```bash
+BBD_PUBLIC_DEPLOYMENT=1
+```
+
+This prevents the app from reading local token files or `EBIRD_API_KEY`.
+
+Cloud Run deployment:
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+scripts/deploy_cloud_run.sh
+```
+
+More deployment notes are in `docs/deploy.md`.
+
+## Development
 
 ```bash
 python -m unittest discover -s tests
 streamlit run dashboard.py
 pip install -e .
 ```
-
-`requirements.txt` is retained for Streamlit-compatible installs. `pyproject.toml` is the package definition used for editable installs and CLI entrypoints.
 
 ## License
 
