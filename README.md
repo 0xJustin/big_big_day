@@ -39,6 +39,14 @@ On Windows:
 
 Paste your eBird API key into the dashboard, choose a region and date, then run the optimizer.
 
+## Migrant Hotspot Dashboard
+
+The repo also includes a warbler migration dashboard. It ranks county hotspots by warbler variety, warbler abundance, time of day, and a best-effort photo signal when checklist media rating metadata is available.
+
+```bash
+streamlit run migrant_dashboard.py
+```
+
 ## API Key Options
 
 The app can read an eBird API key from:
@@ -100,6 +108,12 @@ Cloud Run deployment:
 gcloud auth login
 gcloud config set project YOUR_PROJECT_ID
 scripts/deploy_cloud_run.sh
+```
+
+Deploy the migrant dashboard as a separate Cloud Run service:
+
+```bash
+SERVICE_NAME=migrant-hotspots STREAMLIT_APP=migrant_dashboard.py scripts/deploy_cloud_run.sh
 ```
 
 More deployment notes are in `docs/deploy.md`.

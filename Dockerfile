@@ -16,11 +16,11 @@ RUN apt-get update \
 
 COPY pyproject.toml README.md ./
 COPY big_day_optimizer ./big_day_optimizer
-COPY dashboard.py ./dashboard.py
+COPY dashboard.py migrant_dashboard.py ./
 
 RUN pip install --upgrade pip \
     && pip install .
 
 EXPOSE 8501
 
-CMD streamlit run dashboard.py --server.port="${PORT:-8501}" --server.address=0.0.0.0
+CMD streamlit run "${STREAMLIT_APP:-dashboard.py}" --server.port="${PORT:-8501}" --server.address=0.0.0.0
