@@ -1368,17 +1368,30 @@ def _read_config() -> DashboardConfig:
             )
         depot_locid = None
         with st.expander("Advanced settings", expanded=False):
-            depot_enabled = st.checkbox("Use fixed starting hotspot")
+            depot_enabled = st.checkbox(
+                "Use fixed starting hotspot",
+                help="Force the route to begin at a specific eBird hotspot instead of letting the solver choose the best first stop.",
+            )
             if depot_enabled:
-                depot_locid = st.text_input("Starting hotspot locId").strip() or None
+                depot_locid = st.text_input(
+                    "Starting hotspot locId",
+                    help="eBird hotspot ID for the forced starting point, such as L123456. Leave blank to let the solver choose.",
+                ).strip() or None
 
-            back = st.number_input("Days in each sample window", min_value=1, max_value=30, value=7)
+            back = st.number_input(
+                "Days in each sample window",
+                min_value=1,
+                max_value=30,
+                value=7,
+                help="Number of days before and after the selected date to include when sampling checklist history.",
+            )
             max_checklists_per_day = st.number_input(
                 "Max checklists per hotspot/day",
                 min_value=1,
                 max_value=200,
                 value=50,
                 step=5,
+                help="Maximum checklists to sample for one hotspot on one date. Lower values run faster; higher values use more data.",
             )
             min_checklists_per_hotspot = st.number_input(
                 "Min checklists per hotspot",
@@ -1398,8 +1411,20 @@ def _read_config() -> DashboardConfig:
             )
 
             col_a, col_b = st.columns(2)
-            min_stops = col_a.number_input("Min stops", min_value=1, max_value=50, value=3)
-            max_stops = col_b.number_input("Max stops", min_value=1, max_value=50, value=8)
+            min_stops = col_a.number_input(
+                "Min stops",
+                min_value=1,
+                max_value=50,
+                value=3,
+                help="Minimum number of hotspots the route must include.",
+            )
+            max_stops = col_b.number_input(
+                "Max stops",
+                min_value=1,
+                max_value=50,
+                value=8,
+                help="Maximum number of hotspots the route may include.",
+            )
             min_prob = st.slider(
                 "Solver floor",
                 0.0,
@@ -1432,9 +1457,27 @@ def _read_config() -> DashboardConfig:
                 0.05,
                 help="Expected-species penalty for a second nearby stop.",
             )
-            base_idle = st.number_input("Base dwell minutes", min_value=0, max_value=240, value=30)
-            dwell_per = st.number_input("Minutes per expected new species", min_value=0, max_value=30, value=2)
-            time_limit = st.number_input("Solver time limit seconds", min_value=5, max_value=900, value=60)
+            base_idle = st.number_input(
+                "Base dwell minutes",
+                min_value=0,
+                max_value=240,
+                value=30,
+                help="Minimum birding time assigned to each selected hotspot before species-based dwell time is added.",
+            )
+            dwell_per = st.number_input(
+                "Minutes per expected new species",
+                min_value=0,
+                max_value=30,
+                value=2,
+                help="Additional birding time added for each expected new species at a stop.",
+            )
+            time_limit = st.number_input(
+                "Solver time limit seconds",
+                min_value=5,
+                max_value=900,
+                value=60,
+                help="Maximum time the route solver can spend searching before returning the best route found.",
+            )
 
     return DashboardConfig(
         api_key=api_key.strip(),
